@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "redstone-sim": {
+      "command": "node",
+      "args": ["server/index.js"]
+    }
+  }
+}
