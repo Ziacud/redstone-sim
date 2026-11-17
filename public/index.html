@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Redstone Simulator</title>
+<style>
+  :root {
+    --bg: #14161b;
+    --panel: rgba(24, 27, 34, 0.94);
+    --panel-solid: #181b22;
+    --line: #2c313c;
+    --line-soft: #232731;
+    --text: #e6e8ec;
+    --muted: #9aa1ad;
+    --accent: #ff3b2f;
+    --accent-soft: rgba(255, 59, 47, 0.14);
+    --ok: #5fd068;
+    --warn: #e6b13a;
+    --frozen: #5aa9ff;
+    --side: 300px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 13px/1.4 ui-sans-serif, system-ui, "Segoe UI", sans-serif; overflow: hidden; }
+  #view { position: fixed; inset: 0; }
+  .panel { position: fixed; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; backdrop-filter: blur(6px); }
+  .muted { color: var(--muted); }
+  button, .btn { background: #2a2f3a; color: var(--text); border: 1px solid #3a404c; border-radius: 7px;
+    padding: 6px 10px; font: inherit; cursor: pointer; text-decoration: none; display: inline-flex;
+    align-items: center; gap: 6px; white-space: nowrap; }
+  button:hover, .btn:hover { background: #343a47; }
+  button:focus-visible, .btn:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button.on { border-color: var(--accent); color: #fff; background: var(--accent-soft); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: #ff5247; }
+  button.icon { padding: 5px 7px; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  input[type=text], input[type=search] { width: 100%; background: #12141a; color: var(--text);
+    border: 1px solid #3a404c; border-radius: 7px; padding: 6px 9px; font: inherit; }
+  input[type=range] { width: 120px; accent-color: var(--accent); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 6px; background: #666; }
+  .dot.live { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .dot.paused { background: var(--warn); }
+
+  /* sidebar */
+  #side { position: fixed; top: 0; left: 0; bottom: 0; width: var(--side); background: var(--panel-solid);
+    border-right: 1px solid var(--line); display: flex; flex-direction: column; z-index: 5;
+    transition: transform 0.18s ease; }
+  body.collapsed #side { transform: translateX(calc(-1 * var(--side))); }
+  #side header { padding: 14px 14px 10px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); }
+  #side header h1 { font-size: 15px; margin: 0; flex: 1; letter-spacing: 0.2px; }
+  #side header .logo { width: 22px; height: 22px; border-radius: 5px; background: linear-gradient(135deg, #ff4b3a, #9a1408);
+    box-shadow: 0 0 10px rgba(255, 59, 47, 0.45); }
+  #side .scroll { flex: 1; overflow-y: auto; }
+  section { padding: 12px 14px; border-bottom: 1px solid var(--line-soft); }
+  section h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin: 0 0 9px;
+    display: flex; align-items: center; gap: 8px; }
+  section h2 .count { margin-left: auto; text-transform: none; letter-spacing: 0; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .row + .row, .row + .list, .list + .row, input + .list { margin-top: 8px; }
+  .grow { flex: 1; }
+  .list { display: flex; flex-direction: column; gap: 4px; max-height: 42vh; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+  .item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; cursor: pointer;
+    border: 1px solid transparent; }
+  .item:hover { background: #222631; }
+  .item.current { border-color: var(--accent); background: var(--accent-soft); }
+  .item .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .meta { font-size: 11px; color: var(--muted); }
+  .item .info { flex: 1; min-width: 0; }
+  .item .acts { display: none; gap: 4px; }
+  .item:hover .acts, .item:focus-within .acts { display: flex; }
+  .item .acts button { padding: 3px 6px; font-size: 12px; }
+  .empty { color: var(--muted); padding: 8px; text-align: center; }
+  .check { display: flex; align-items: center; gap: 7px; color: var(--muted); margin-top: 8px; cursor: pointer; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .frozen-tag { display: inline-block; background: rgba(90, 169, 255, 0.16); color: var(--frozen); border: 1px solid rgba(90, 169, 255, 0.4);
+    border-radius: 6px; padding: 1px 6px; font-size: 11px; margin: 2px 2px 0 0; }
+  #help ul { margin: 0; padding-left: 18px; color: var(--muted); }
+  #help li + li { margin-top: 3px; }
+  kbd { background: #2a2f3a; border: 1px solid #3a404c; border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; font: 11px ui-monospace, Consolas, monospace; color: var(--text); }
+
+  /* top bar */
+  #bar { top: 12px; left: calc(var(--side) + 12px); display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    max-width: calc(100vw - var(--side) - 24px); transition: left 0.18s ease; }
+  body.collapsed #bar { left: 12px; max-width: calc(100vw - 24px); }
+  #bar .stat { font-variant-numeric: tabular-nums; min-width: 92px; }
+  #bar .stat b { font-size: 15px; }
+  #bar .design { font-weight: 600; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sep { width: 1px; align-self: stretch; background: var(--line); }
+
+  #tip { pointer-events: none; display: none; max-width: 340px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; z-index: 6; }
+  #conn { bottom: 12px; right: 12px; }
+  #mode { bottom: 12px; left: 50%; transform: translateX(-50%); display: none; border-color: var(--frozen); color: var(--frozen); }
+  body.chunkmode #mode { display: block; }
+  body.chunkmode #view, body.trapmode #view { cursor: crosshair; }
+  #trapmodehint { bottom: 12px; left: 50%; transform: translateX(-50%); display: none; border-color: var(--accent); color: #ff8a80; }
+  body.trapmode #trapmodehint { display: block; }
+  select, input[type=number] { background: #12141a; color: var(--text); border: 1px solid #3a404c; border-radius: 7px;
+    padding: 6px 8px; font: inherit; min-width: 0; }
+
+  /* toasts and drop zone */
+  #toasts { position: fixed; right: 12px; top: 12px; display: flex; flex-direction: column; gap: 8px; z-index: 20; max-width: 360px; }
+  .toast { background: var(--panel-solid); border: 1px solid var(--line); border-left: 3px solid var(--ok); border-radius: 8px;
+    padding: 9px 12px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); animation: in 0.15s ease; }
+  .toast.err { border-left-color: var(--accent); }
+  @keyframes in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+  #drop { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 30;
+    background: rgba(20, 22, 27, 0.78); border: 3px dashed var(--accent); font-size: 18px; }
+  body.dragging #drop { display: flex; }
+  #busy { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 25;
+    background: rgba(20, 22, 27, 0.5); font-size: 15px; }
+  body.busy #busy { display: flex; }
+
+  @media (max-width: 760px) {
+    :root { --side: 270px; }
+    #bar { left: 12px; max-width: calc(100vw - 24px); top: auto; bottom: 56px; }
+    body:not(.collapsed) #bar { display: none; }
+  }
+</style>
+<script type="importmap">
+  { "imports": { "three": "/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="view"></div>
+
+<aside id="side">
+  <header>
+    <div class="logo"></div>
+    <h1 data-i18n="title">Redstone Simulator</h1>
+    <button id="lang" class="icon" data-i18n="lang.switch" data-i18n-title="lang.switchTitle">Türkçe</button>
+    <button id="collapse" class="icon" data-i18n-title="panel.hide">⟨</button>
+  </header>
+  <div class="scroll">
+    <section>
+      <h2><span data-i18n="designs.title">Designs</span> <span class="count muted" id="dcount"></span></h2>
+      <input type="search" id="search" data-i18n-placeholder="designs.search" autocomplete="off">
+      <div class="list" id="designs"><div class="empty" data-i18n="designs.loading">loading…</div></div>
+      <div class="row">
+        <button id="open" class="primary grow" data-i18n="designs.open" data-i18n-title="designs.openTitle">📂 Open file…</button>
+        <button id="refresh" class="icon" data-i18n-title="designs.refresh">⟳</button>
+      </div>
+      <label class="check"><input type="checkbox" id="keep" checked> <span data-i18n="designs.keep"></span></label>
+      <div class="hint" data-i18n-html="designs.hint"></div>
+      <input type="file" id="file" accept=".json,.mcfunction,.txt" hidden>
+    </section>
+
+    <section>
+      <h2 data-i18n="world.title">This world</h2>
+      <div class="row">
+        <input type="text" id="savename" class="grow" data-i18n-placeholder="world.name" style="width:auto;flex:1">
+        <button id="save" data-i18n="world.save">💾 Save</button>
+      </div>
+      <div class="row">
+        <a class="btn grow" id="dljson" href="/api/world.json" download data-i18n="world.dlJson">⬇ .json</a>
+        <a class="btn grow" id="dlmcf" href="/api/world.mcfunction" download data-i18n="world.dlMcf">⬇ .mcfunction</a>
+      </div>
+      <div class="row">
+        <button id="newworld" class="grow" data-i18n="world.new">✚ New empty world</button>
+      </div>
+    </section>
+
+    <section>
+      <h2 data-i18n="server.title">Server test</h2>
+      <div class="row">
+        <button id="restart" class="grow" data-i18n="server.restart" data-i18n-title="server.restartTitle">⟲ Server restart</button>
+      </div>
+      <div class="row">
+        <button id="chunkmode" class="grow" data-i18n="chunk.mode" data-i18n-title="chunk.modeTitle">❄ Freeze chunk (C)</button>
+        <button id="thaw" data-i18n="chunk.thaw" data-i18n-title="chunk.thawTitle">Thaw all</button>
+      </div>
+      <div class="hint" id="frozenlist"></div>
+      <div class="row">
+        <select id="trapmode" class="grow" data-i18n-title="trap.modeTitle">
+          <option value="freeze" data-i18n="trap.freeze"></option>
+          <option value="cancel" data-i18n="trap.cancel"></option>
+        </select>
+        <input id="traphold" type="number" min="1" max="600" value="10" data-i18n-title="trap.holdTitle" style="width:58px"> <span class="muted" data-i18n="unit.s">s</span>
+      </div>
+      <label class="check"><input type="checkbox" id="trapreload"> <span data-i18n="trap.reload"></span></label>
+      <div class="row">
+        <button id="trapset" class="grow" data-i18n="trap.set" data-i18n-title="trap.setTitle">⛔ Set border trap (T)</button>
+        <button id="trapclear" data-i18n="trap.clear" data-i18n-title="trap.clearTitle">Remove</button>
+      </div>
+      <div class="hint" id="trapinfo"></div>
+      <label class="check" data-i18n-title="paper.title"><input type="checkbox" id="paper"> <span data-i18n="paper.label"></span></label>
+    </section>
+
+    <section id="help">
+      <h2 data-i18n="help.title">Controls</h2>
+      <ul>
+        <li data-i18n="help.mouse"></li>
+        <li data-i18n="help.click"></li>
+        <li data-i18n-html="help.keys"></li>
+        <li data-i18n="help.ticks"></li>
+      </ul>
+    </section>
+  </div>
+</aside>
+
+<div id="bar" class="panel">
+  <span class="stat"><span id="dot" class="dot"></span><b id="time">0</b> <span class="muted">gt</span></span>
+  <span class="stat muted" id="secs">0.0 s</span>
+  <span class="design" id="dname" data-i18n-title="world.loadedDesign"></span>
+  <div class="sep"></div>
+  <button id="play" data-i18n-title="bar.playTitle">⏸</button>
+  <button id="step1" data-i18n-title="bar.step1Title">+1 gt</button>
+  <button id="step10" data-i18n-title="bar.step10Title">+10 gt</button>
+  <div class="sep"></div>
+  <span class="muted" data-i18n="bar.speed">Speed</span>
+  <button data-tps="2">2</button><button data-tps="5">5</button><button data-tps="20" class="on">20</button><button data-tps="100">100</button><button data-tps="1000">1000</button>
+  <span class="muted">tps</span>
+  <div class="sep"></div>
+  <label class="muted"><span data-i18n="bar.cut">Y cut ≤</span> <b id="cutv">∞</b></label>
+  <input id="cut" type="range" min="-1" max="64" value="64">
+  <button id="focus" class="icon" data-i18n-title="bar.focus">⌖</button>
+</div>
+
+<div id="tip" class="panel"></div>
+<div id="mode" class="panel" data-i18n-html="chunk.modeHint"></div>
+<div id="trapmodehint" class="panel" data-i18n-html="trap.modeHint"></div>
+<div id="conn" class="panel muted"></div>
+<div id="toasts"></div>
+<div id="drop" data-i18n="drop"></div>
+<div id="busy" data-i18n="busy">Loading…</div>
+
+<script type="module" src="/viewer.js"></script>
+</body>
+</html>

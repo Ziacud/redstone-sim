@@ -1,0 +1,246 @@
+// UI strings for the viewer (English and Turkish). Static elements carry data-i18n* attributes;
+// strings built in viewer.js go through t(). The choice is kept in localStorage; the default
+// follows the browser language.
+
+const STRINGS = {
+  en: {
+    'title': 'Redstone Simulator',
+    'lang.switch': 'Türkçe',
+    'lang.switchTitle': 'Türkçeye geç',
+    'panel.hide': 'Hide panel (P)',
+    'designs.title': 'Designs',
+    'designs.search': 'Search…',
+    'designs.loading': 'loading…',
+    'designs.open': '📂 Open file…',
+    'designs.openTitle': 'Open a .json or .mcfunction from your computer',
+    'designs.refresh': 'Refresh list',
+    'designs.keep': 'Also save opened files to designs',
+    'designs.hint': 'You can drag a file onto the page. <code>setblock</code> and <code>fill</code> commands in a <code>.mcfunction</code> run as they do in game.',
+    'designs.listError': 'could not load the list: {msg}',
+    'designs.clickToLoad': 'Click to load',
+    'designs.download': 'Download',
+    'designs.delete': 'Delete',
+    'designs.meta': '{blocks} blocks · {size} · {date}',
+    'designs.noMatch': 'no matching designs',
+    'designs.none': 'no saved designs yet',
+    'designs.loaded': '"{name}" loaded',
+    'designs.loadFailed': 'could not load: {msg}',
+    'designs.confirmDelete': 'Delete the design "{name}"? This cannot be undone.',
+    'designs.deleted': '"{name}" deleted',
+    'designs.deleteFailed': 'could not delete: {msg}',
+    'import.onlyTypes': 'Only .json or .mcfunction files can be opened',
+    'import.counts': ' ({placed} blocks{skipped})',
+    'import.skipped': ', {n} commands skipped',
+    'import.savedAs': ', saved as "{name}"',
+    'import.opened': '"{file}" opened{counts}{saved}',
+    'import.failed': 'could not open: {msg}',
+    'world.title': 'This world',
+    'world.name': 'design name',
+    'world.save': '💾 Save',
+    'world.dlJson': '⬇ Download .json',
+    'world.dlMcf': '⬇ Download .mcfunction',
+    'world.new': '✚ New empty world',
+    'world.needName': 'Type a name first',
+    'world.confirmOverwrite': '"{name}" already exists. Overwrite it?',
+    'world.saved': '"{name}" saved',
+    'world.saveFailed': 'could not save: {msg}',
+    'world.confirmNew': 'Open an empty world? Unsaved changes will be lost.',
+    'world.newDone': 'New empty world',
+    'world.unsaved': 'unsaved world',
+    'world.loadedDesign': 'Loaded design',
+    'server.title': 'Server test',
+    'server.restart': '⟲ Server restart',
+    'server.restartTitle': 'Save + load like vanilla: block events are lost, moving pistons load with their progress',
+    'server.restartDone': 'Server restart simulated',
+    'chunk.mode': '❄ Freeze chunk (C)',
+    'chunk.modeTitle': 'The clicked block’s chunk gets no ticks (as if outside the player’s simulation distance)',
+    'chunk.thaw': 'Thaw all',
+    'chunk.thawTitle': 'Thaw every chunk',
+    'chunk.none': 'No frozen chunks.',
+    'chunk.list': 'Frozen ({n}): ',
+    'chunk.modeHint': '❄ Chunk freezing: click a block to freeze / thaw its chunk. <kbd>C</kbd> or <kbd>Esc</kbd> to leave.',
+    'trap.modeTitle': 'What happens at the border',
+    'trap.freeze': 'Beyond the border gets no ticks',
+    'trap.cancel': 'A plugin cancels the piston move',
+    'trap.holdTitle': 'How many seconds',
+    'trap.reload': 'Reload those chunks afterwards',
+    'trap.set': '⛔ Set border trap (T)',
+    'trap.setTitle': 'Then click a block: a trap is set on the nearest chunk border. It fires every time the machine tries to cross that border.',
+    'trap.clear': 'Remove',
+    'trap.clearTitle': 'Remove the trap',
+    'trap.none': 'No trap.',
+    'trap.whatCancel': 'piston moves cancelled',
+    'trap.whatFreeze': 'the far side gets no ticks',
+    'trap.reloadAfter': ', then reload',
+    'trap.info': 'Trap at x=<b>{border}</b> ({what}, {hold} s{reload}): fired <b>{fired}</b> times',
+    'trap.active': ', active now ({left} s)',
+    'trap.modeHint': '⛔ Trap: click a block to set it on the nearest chunk border. <kbd>Esc</kbd> to cancel.',
+    'paper.label': 'Paper piston behaviour',
+    'paper.title': 'Paper server piston move order (allow-piston-duplication: false)',
+    'help.title': 'Controls',
+    'help.mouse': 'Left drag: rotate · Right drag: pan · Wheel: zoom',
+    'help.click': 'Click: lever / button / repeater delay / comparator mode',
+    'help.keys': '<kbd>Space</kbd> run-pause · <kbd>.</kbd> 1 tick · <kbd>F</kbd> focus · <kbd>C</kbd> chunk freezing · <kbd>P</kbd> panel',
+    'help.ticks': '1 redstone tick = 2 game ticks (gt); vanilla speed is 20 tps',
+    'bar.secs': '{s} s',
+    'bar.pause': '⏸ Pause',
+    'bar.run': '▶ Run',
+    'bar.playTitle': 'Run / Pause (Space)',
+    'bar.step1Title': 'Advance 1 tick (.)',
+    'bar.step10Title': 'Advance 10 ticks',
+    'bar.speed': 'Speed',
+    'bar.cut': 'Y cut ≤',
+    'bar.focus': 'Focus on the design (F)',
+    'conn.connecting': 'connecting…',
+    'conn.ok': 'connected',
+    'conn.lost': 'connection lost, retrying…',
+    'conn.error': 'error: {msg}',
+    'tip.power': 'power',
+    'tip.chunkClick': 'click: freeze / thaw',
+    'tip.use': 'click: use',
+    'drop': 'Drop the file: a .json design or a .mcfunction',
+    'busy': 'Loading…',
+    'unit.s': 's',
+  },
+  tr: {
+    'title': 'Redstone Simülatörü',
+    'lang.switch': 'English',
+    'lang.switchTitle': 'Switch to English',
+    'panel.hide': 'Paneli gizle (P)',
+    'designs.title': 'Tasarımlar',
+    'designs.search': 'Ara…',
+    'designs.loading': 'yükleniyor…',
+    'designs.open': '📂 Dosyadan aç…',
+    'designs.openTitle': 'Bilgisayarından .json ya da .mcfunction aç',
+    'designs.refresh': 'Listeyi yenile',
+    'designs.keep': 'Açılan dosyayı tasarımlara da kaydet',
+    'designs.hint': 'Dosyayı sayfaya sürükleyip bırakabilirsin. <code>.mcfunction</code> içindeki setblock ve fill komutları oyundaki gibi çalıştırılır.',
+    'designs.listError': 'liste alınamadı: {msg}',
+    'designs.clickToLoad': 'Yüklemek için tıkla',
+    'designs.download': 'İndir',
+    'designs.delete': 'Sil',
+    'designs.meta': '{blocks} blok · {size} · {date}',
+    'designs.noMatch': 'eşleşen tasarım yok',
+    'designs.none': 'henüz kayıtlı tasarım yok',
+    'designs.loaded': '"{name}" yüklendi',
+    'designs.loadFailed': 'yüklenemedi: {msg}',
+    'designs.confirmDelete': '"{name}" tasarımı silinsin mi? Geri alınamaz.',
+    'designs.deleted': '"{name}" silindi',
+    'designs.deleteFailed': 'silinemedi: {msg}',
+    'import.onlyTypes': 'Yalnızca .json ya da .mcfunction açılabilir',
+    'import.counts': ' ({placed} blok{skipped})',
+    'import.skipped': ', {n} komut atlandı',
+    'import.savedAs': ', "{name}" olarak kaydedildi',
+    'import.opened': '"{file}" açıldı{counts}{saved}',
+    'import.failed': 'açılamadı: {msg}',
+    'world.title': 'Bu dünya',
+    'world.name': 'tasarım adı',
+    'world.save': '💾 Kaydet',
+    'world.dlJson': '⬇ .json indir',
+    'world.dlMcf': '⬇ .mcfunction indir',
+    'world.new': '✚ Yeni boş dünya',
+    'world.needName': 'Önce bir ad yaz',
+    'world.confirmOverwrite': '"{name}" zaten var. Üzerine yazılsın mı?',
+    'world.saved': '"{name}" kaydedildi',
+    'world.saveFailed': 'kaydedilemedi: {msg}',
+    'world.confirmNew': 'Boş bir dünya açılsın mı? Kaydedilmemiş değişiklikler gider.',
+    'world.newDone': 'Yeni boş dünya',
+    'world.unsaved': 'kaydedilmemiş dünya',
+    'world.loadedDesign': 'Yüklü tasarım',
+    'server.title': 'Sunucu testi',
+    'server.restart': '⟲ Sunucu restart\'ı',
+    'server.restartTitle': 'Kaydet + yükle, vanilla gibi: blok olayları kaybolur, hareket eden pistonlar progress ile yüklenir',
+    'server.restartDone': 'Sunucu restart\'ı simüle edildi',
+    'chunk.mode': '❄ Chunk dondur (C)',
+    'chunk.modeTitle': 'Tıklanan bloğun chunk\'ı tick almaz (oyuncunun simülasyon mesafesinin dışı gibi)',
+    'chunk.thaw': 'Hepsini çöz',
+    'chunk.thawTitle': 'Bütün chunk\'ları çöz',
+    'chunk.none': 'Donmuş chunk yok.',
+    'chunk.list': 'Donmuş ({n}): ',
+    'chunk.modeHint': '❄ Chunk dondurma: bir bloğa tıkla, chunk\'ı donar / çözülür. Çıkmak için <kbd>C</kbd> ya da <kbd>Esc</kbd>.',
+    'trap.modeTitle': 'Sınırda ne olsun',
+    'trap.freeze': 'Sınırın ötesi tick almasın',
+    'trap.cancel': 'Eklenti piston hareketini iptal etsin',
+    'trap.holdTitle': 'Kaç saniye',
+    'trap.reload': 'Bitince o chunk\'ları yeniden yükle',
+    'trap.set': '⛔ Sınır tuzağı kur (T)',
+    'trap.setTitle': 'Sonra bir bloğa tıkla: en yakın chunk sınırına tuzak kurulur. Makine o sınırı her geçmeye kalktığında tetiklenir.',
+    'trap.clear': 'Kaldır',
+    'trap.clearTitle': 'Tuzağı kaldır',
+    'trap.none': 'Tuzak yok.',
+    'trap.whatCancel': 'piston hareketleri iptal',
+    'trap.whatFreeze': 'öte taraf tick almıyor',
+    'trap.reloadAfter': ', sonra yeniden yükleme',
+    'trap.info': 'Tuzak x=<b>{border}</b> ({what}, {hold} sn{reload}): <b>{fired}</b> kez tetiklendi',
+    'trap.active': ', şu an aktif ({left} sn)',
+    'trap.modeHint': '⛔ Tuzak: bir bloğa tıkla, en yakın chunk sınırına kurulur. Vazgeçmek için <kbd>Esc</kbd>.',
+    'paper.label': 'Paper piston davranışı',
+    'paper.title': 'Paper sunucusunun piston taşıma sırası (allow-piston-duplication: false)',
+    'help.title': 'Kontroller',
+    'help.mouse': 'Sol sürükle: döndür · Sağ sürükle: kaydır · Tekerlek: yakınlaş',
+    'help.click': 'Tıkla: şalter / buton / repeater gecikmesi / comparator modu',
+    'help.keys': '<kbd>Boşluk</kbd> başlat-duraklat · <kbd>.</kbd> 1 tick · <kbd>F</kbd> odaklan · <kbd>C</kbd> chunk dondurma · <kbd>P</kbd> panel',
+    'help.ticks': '1 redstone tick = 2 game tick (gt); vanilla hızı 20 tps',
+    'bar.secs': '{s} sn',
+    'bar.pause': '⏸ Duraklat',
+    'bar.run': '▶ Başlat',
+    'bar.playTitle': 'Başlat / Duraklat (Boşluk)',
+    'bar.step1Title': '1 tick ilerle (.)',
+    'bar.step10Title': '10 tick ilerle',
+    'bar.speed': 'Hız',
+    'bar.cut': 'Y kesiti ≤',
+    'bar.focus': 'Tasarıma odaklan (F)',
+    'conn.connecting': 'bağlanıyor…',
+    'conn.ok': 'bağlı',
+    'conn.lost': 'bağlantı koptu, tekrar deneniyor…',
+    'conn.error': 'hata: {msg}',
+    'tip.power': 'güç',
+    'tip.chunkClick': 'tıkla: dondur / çöz',
+    'tip.use': 'tıkla: kullan',
+    'drop': 'Dosyayı bırak: .json tasarım ya da .mcfunction',
+    'busy': 'Yükleniyor…',
+    'unit.s': 'sn',
+  },
+};
+
+const LOCALES = { en: 'en-US', tr: 'tr-TR' };
+
+function initialLang() {
+  try {
+    const saved = localStorage.getItem('redstone-sim.lang');
+    if (saved && STRINGS[saved]) return saved;
+  } catch {}
+  return /^tr\b/i.test(navigator.language || '') ? 'tr' : 'en';
+}
+
+export let lang = initialLang();
+export const locale = () => LOCALES[lang];
+
+/** The string for `key` in the current language, with {name} placeholders filled from `vars`. */
+export function t(key, vars = {}) {
+  const s = STRINGS[lang][key] ?? STRINGS.en[key] ?? key;
+  return s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+}
+
+/** Fills every element marked with data-i18n (text), data-i18n-html, -title or -placeholder. */
+export function applyStatic(root = document) {
+  document.documentElement.lang = lang;
+  document.title = t('title');
+  for (const el of root.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
+  for (const el of root.querySelectorAll('[data-i18n-html]')) el.innerHTML = t(el.dataset.i18nHtml);
+  for (const el of root.querySelectorAll('[data-i18n-title]')) el.title = t(el.dataset.i18nTitle);
+  for (const el of root.querySelectorAll('[data-i18n-placeholder]')) el.placeholder = t(el.dataset.i18nPlaceholder);
+}
+
+const listeners = [];
+export const onLangChange = (fn) => listeners.push(fn);
+
+export function setLang(next) {
+  if (!STRINGS[next] || next === lang) return;
+  lang = next;
+  try {
+    localStorage.setItem('redstone-sim.lang', next);
+  } catch {}
+  applyStatic();
+  listeners.forEach((fn) => fn());
+}

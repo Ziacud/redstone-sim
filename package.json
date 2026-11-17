@@ -1,0 +1,32 @@
+{
+  "name": "redstone-sim",
+  "version": "0.1.0",
+  "description": "Vanilla-faithful Minecraft (Java Edition) redstone simulator with an MCP server and a 3D web viewer",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server/index.js",
+    "viewer": "node server/index.js --viewer-only --load demo",
+    "test": "node --test test/vanilla.test.js test/mcp.test.js test/conformance.test.js",
+    "fetch-captures": "node scripts/fetch-tickwright.js",
+    "conformance": "node conformance/run.js --verbose"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "three": "^0.186.1",
+    "ws": "^8.22.0",
+    "zod": "^4.6.7"
+  },
+  "license": "MIT",
+  "keywords": [
+    "minecraft",
+    "redstone",
+    "simulator",
+    "mcp",
+    "model-context-protocol",
+    "three.js"
+  ]
+}
