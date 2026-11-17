@@ -1,0 +1,5 @@
+node_modules/
+vendor/
+# your own saved designs (the demo is part of the repo)
+designs/*
+!designs/demo.json
