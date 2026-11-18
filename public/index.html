@@ -97,6 +97,16 @@
   body.chunkmode #view, body.trapmode #view { cursor: crosshair; }
   #trapmodehint { bottom: 12px; left: 50%; transform: translateX(-50%); display: none; border-color: var(--accent); color: #ff8a80; }
   body.trapmode #trapmodehint { display: block; }
+  #matpanel { display: none; top: 70px; right: 12px; width: min(460px, calc(100vw - 24px)); max-height: calc(100vh - 140px);
+    flex-direction: column; gap: 8px; z-index: 8; background: var(--panel-solid); }
+  body.mats #matpanel { display: flex; }
+  .mathead { display: flex; align-items: center; gap: 8px; }
+  .matbody { overflow-y: auto; min-height: 0; }
+  #mattable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  #mattable th { text-align: left; color: var(--muted); font-weight: 600; font-size: 11px; padding: 4px 6px; border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; background: var(--panel-solid); }
+  #mattable td { padding: 4px 6px; border-bottom: 1px solid var(--line-soft); }
+  #mattable td.n, #mattable th.n { text-align: right; }
   select, input[type=number] { background: #12141a; color: var(--text); border: 1px solid #3a404c; border-radius: 7px;
     padding: 6px 8px; font: inherit; min-width: 0; }
 
@@ -158,6 +168,9 @@
         <a class="btn grow" id="dlmcf" href="/api/world.mcfunction" download data-i18n="world.dlMcf">⬇ .mcfunction</a>
       </div>
       <div class="row">
+        <button id="mats" class="grow" data-i18n="mats.button">📦 Material list</button>
+      </div>
+      <div class="row">
         <button id="newworld" class="grow" data-i18n="world.new">✚ New empty world</button>
       </div>
     </section>
@@ -206,6 +219,8 @@
   <span class="design" id="dname" data-i18n-title="world.loadedDesign"></span>
   <div class="sep"></div>
   <button id="play" data-i18n-title="bar.playTitle">⏸</button>
+  <button id="back10" data-i18n-title="bar.back10Title">−10 gt</button>
+  <button id="back1" data-i18n-title="bar.back1Title">−1 gt</button>
   <button id="step1" data-i18n-title="bar.step1Title">+1 gt</button>
   <button id="step10" data-i18n-title="bar.step10Title">+10 gt</button>
   <div class="sep"></div>
@@ -219,6 +234,14 @@
 </div>
 
 <div id="tip" class="panel"></div>
+<div id="matpanel" class="panel" role="dialog" aria-labelledby="mattitle">
+  <div class="mathead"><b id="mattitle" data-i18n="mats.title">Material list</b> <span class="muted" id="matsum"></span>
+    <span class="grow"></span>
+    <button id="matcopy" data-i18n="mats.copy">Copy</button>
+    <button id="matclose" class="icon" data-i18n-title="mats.close">✕</button></div>
+  <div class="matbody"><table id="mattable"></table></div>
+  <div class="hint" data-i18n="mats.note"></div>
+</div>
 <div id="mode" class="panel" data-i18n-html="chunk.modeHint"></div>
 <div id="trapmodehint" class="panel" data-i18n-html="trap.modeHint"></div>
 <div id="conn" class="panel muted"></div>

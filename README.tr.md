@@ -15,6 +15,8 @@ bir 3D web görüntüleyici içerir.
   machine'i yoğun bir sunucu gibi chunk sınırında durduran sınır tuzakları.
 - Arayüzsüz çalışır ve her seferinde aynı sonucu verir: bir scriptle binlerce senaryo
   denenebilir ya da biri 3D izlenebilir.
+- **Geri sarma:** bir makinenin nasıl bozulduğunu görmek için tick tick geri gidilebilir.
+- **Malzeme listesi:** bir yapının gerektirdiği eşyalar, stack ve shulker kutusu sayıları.
 - Gerçek Java dünyalarını (Anvil bölge dosyaları) okur, oyuna yapıştırılabilecek `.mcfunction`
   dosyaları yazar.
 
@@ -71,6 +73,11 @@ düğme; varsayılan tarayıcının dili).
   kalktığında öte taraf belirlediğin süre tick almaz (ya da bir eklenti piston hareketini
   iptal eder).
 - **Paper piston davranışı:** Paper'ın piston taşıma sırası (`allow-piston-duplication: false`).
+- **Geri sarma:** üst çubuktaki `−1 gt` / `−10 gt` (ya da `,`) zamanda geri gider. Simülatör her
+  32 tick'te dünyanın birebir kopyasını tutar ve aradaki tick'leri yeniden çalıştırır, yani
+  geçmiş aynen tekrar oynar. Geri gidilen noktadan sonra yapılan düzenlemeler geri alınır.
+- **Malzeme listesi:** dünyanın gerektirdiği her eşya, stack ve shulker kutusu sayısıyla; metin
+  olarak kopyalanabilir.
 
 ### Claude Code ile (MCP)
 
@@ -87,11 +94,12 @@ Proje kökündeki `.mcp.json` sunucuyu tanıtır. Claude Code'u bu klasörde ba�
 | `inspect` | Tek blok: durum, güç, bekleyen tick'ler, gelen sinyaller |
 | `interact` | Şalter, buton, repeater gecikmesi, comparator modu, varil sinyali |
 | `run_ticks` | Belirli sayıda tick çalıştırır, problardan dalga formu ve kenar listesi döner |
-| `sim_control` | Duraklat, devam et, adım at, tps ayarla |
+| `sim_control` | Duraklat, devam et, adım at, tps ayarla, geri sar |
 | `chunk_control` | Chunk dondur/çöz, sunucu restart'ı |
 | `clear_world` | Baştan başla |
 | `save_design`, `load_design`, `list_designs` | `designs/` klasörüne kaydeder ve yükler |
 | `export_mcfunction` | Gerçek Minecraft için `/setblock` komutları üretir |
+| `material_list` | Bir yapının (ya da bir bölgesinin) gerektirdiği eşyalar, stack ve shulker sayıları |
 
 ## Sunucu koşulları: restart ve unload edilmiş chunk'lar
 

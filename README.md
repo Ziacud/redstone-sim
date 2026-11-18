@@ -13,6 +13,8 @@ assistant such as Claude can build and test circuits) and a live 3D web viewer.
 - **Server conditions:** frozen (unloaded or lazy) chunks, server restarts, and chunk-border
   traps that stop a flying machine the way a busy server does.
 - Headless and deterministic: run thousands of what-if cases from a script, or watch one in 3D.
+- **Rewind:** step back tick by tick to see exactly how a machine broke.
+- **Material list:** the items, stacks and shulker boxes a build takes.
 - Reads real Java worlds (Anvil region files) and writes `.mcfunction` files you can paste into
   the game.
 
@@ -70,6 +72,10 @@ panel; the default follows your browser language).
   cross the border, the far side stops ticking (or a plugin cancels the piston move) for the
   time you set.
 - **Paper piston behaviour:** Paper's piston move order (`allow-piston-duplication: false`).
+- **Rewind:** `−1 gt` / `−10 gt` in the top bar (or `,`) go back in time. The simulator keeps
+  exact copies of the world every 32 ticks and runs the rest again, so the past replays exactly.
+  Edits made after the point you go back to are undone.
+- **Material list:** every item the world takes, with stacks and shulker boxes; copy it as text.
 
 ### With Claude Code (MCP)
 
@@ -86,11 +92,12 @@ http://localhost:3700/). Other MCP clients: run `node server/index.js` over stdi
 | `inspect` | One block: state, power, pending ticks, incoming signals |
 | `interact` | Levers, buttons, repeater delay, comparator mode, barrel signal |
 | `run_ticks` | Run a number of ticks; returns waveforms and edge lists from probes |
-| `sim_control` | Pause, resume, step, set tps |
+| `sim_control` | Pause, resume, step, set tps, rewind |
 | `chunk_control` | Freeze / thaw chunks, simulate a server restart |
 | `clear_world` | Start over |
 | `save_design`, `load_design`, `list_designs` | Save to and load from `designs/` |
 | `export_mcfunction` | `/setblock` commands for real Minecraft |
+| `material_list` | Items, stacks and shulker boxes a build (or a box of it) takes |
 
 ## Server conditions: restarts and unloaded chunks
 

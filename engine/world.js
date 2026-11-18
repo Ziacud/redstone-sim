@@ -15,16 +15,25 @@ export const MAX_Y = 320; // exclusive (max build height)
 
 // Block.UPDATE_* flags
 /** Seeded random (mulberry32) with Java Random-like helpers. */
-export function seededRandom(seed) {
-  let a = seed >>> 0;
-  const next = () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
+// An object (not a closure) so World snapshots (engine/clone.js) can copy its state.
+class SeededRandom {
+  constructor(seed) {
+    this.a = seed >>> 0;
+  }
+  nextFloat() {
+    this.a = (this.a + 0x6d2b79f5) >>> 0;
+    let t = this.a;
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-  return { nextFloat: next, nextInt: (n) => Math.floor(next() * n) };
+  }
+  nextInt(n) {
+    return Math.floor(this.nextFloat() * n);
+  }
+}
+
+export function seededRandom(seed) {
+  return new SeededRandom(seed);
 }
 
 export const F = {

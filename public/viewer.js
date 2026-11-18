@@ -475,6 +475,11 @@ function showStatus(s) {
   $('dot').className = `dot ${status.running ? 'live' : 'paused'}`;
   $('play').textContent = status.running ? t('bar.pause') : t('bar.run');
   document.querySelectorAll('[data-tps]').forEach((b) => b.classList.toggle('on', Number(b.dataset.tps) === status.tps));
+  const canBack = status.historyStart !== undefined && status.time > status.historyStart;
+  for (const id of ['back1', 'back10']) {
+    $(id).disabled = !canBack;
+    $(id).title = canBack ? t(id === 'back1' ? 'bar.back1Title' : 'bar.back10Title') : t('bar.backLimit', { t: status.historyStart ?? status.time });
+  }
   if ('design' in s) {
     $('dname').textContent = status.design ?? t('world.unsaved');
     $('dname').classList.toggle('muted', !status.design);
@@ -521,6 +526,8 @@ connect();
 $('play').onclick = () => send({ type: status.running ? 'pause' : 'resume' });
 $('step1').onclick = () => send({ type: 'step', n: 1 });
 $('step10').onclick = () => send({ type: 'step', n: 10 });
+$('back1').onclick = () => send({ type: 'rewind', n: 1 });
+$('back10').onclick = () => send({ type: 'rewind', n: 10 });
 document.querySelectorAll('[data-tps]').forEach((b) => (b.onclick = () => send({ type: 'tps', tps: Number(b.dataset.tps) })));
 $('cut').oninput = (e) => {
   const v = Number(e.target.value);
@@ -538,6 +545,7 @@ addEventListener('keydown', (e) => {
     e.preventDefault();
     send({ type: status.running ? 'pause' : 'resume' });
   } else if (e.key === '.') send({ type: 'step', n: 1 });
+  else if (e.key === ',') send({ type: 'rewind', n: 1 });
   else if (k === 'f') frame();
   else if (k === 'c') setChunkMode(!chunkMode);
   else if (k === 't') setTrapMode(!trapMode);
@@ -545,6 +553,7 @@ addEventListener('keydown', (e) => {
   else if (e.key === 'Escape') {
     setChunkMode(false);
     setTrapMode(false);
+    document.body.classList.remove('mats');
   }
 });
 
@@ -771,6 +780,40 @@ $('newworld').onclick = async () => {
   toast(t('world.newDone'));
 };
 $('collapse').onclick = () => document.body.classList.toggle('collapsed');
+
+// material list
+let mats = null;
+function renderMats() {
+  if (!mats) return;
+  const total = mats.reduce((n, m) => n + m.count, 0);
+  $('matsum').textContent = mats.length ? t('mats.summary', { total: total.toLocaleString(locale()), kinds: mats.length }) : '';
+  const stacks = (m) => `${m.stacks} × ${m.stackSize}${m.rest ? ` + ${m.rest}` : ''}`;
+  $('mattable').innerHTML = mats.length
+    ? `<thead><tr><th>${esc(t('mats.item'))}</th><th class="n">${esc(t('mats.count'))}</th><th class="n">${esc(t('mats.stacks'))}</th><th class="n">${esc(t('mats.shulkers'))}</th></tr></thead><tbody>` +
+      mats.map((m) => `<tr><td>${esc(m.item)}</td><td class="n">${m.count.toLocaleString(locale())}</td><td class="n">${stacks(m)}</td><td class="n">${m.shulkers.toLocaleString(locale())}</td></tr>`).join('') +
+      '</tbody>'
+    : `<tbody><tr><td class="empty">${esc(t('mats.empty'))}</td></tr></tbody>`;
+}
+$('mats').onclick = async () => {
+  try {
+    mats = await api('/api/materials');
+    renderMats();
+    document.body.classList.add('mats');
+  } catch (e) {
+    toast(t('mats.failed', { msg: e.message }), true);
+  }
+};
+$('matclose').onclick = () => document.body.classList.remove('mats');
+$('matcopy').onclick = async () => {
+  if (!mats) return;
+  const text = mats.map((m) => `${m.item}\t${m.count}\t${m.stacks} x ${m.stackSize}${m.rest ? ` + ${m.rest}` : ''}\t${m.shulkers}`).join('\n');
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(t('mats.copied'));
+  } catch (e) {
+    toast(e.message, true);
+  }
+};
 $('focus').onclick = frame;
 
 // server tests
@@ -871,6 +914,7 @@ onLangChange(() => {
   showTrap(status.trap);
   showConn(...connState);
   renderDesigns();
+  renderMats();
 });
 applyStatic();
 showStatus({ design: status.design });

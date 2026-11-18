@@ -84,6 +84,8 @@ async function api(req, res, url) {
       return sendFile(res, `${sim.designName ?? 'world'}.json`, 'application/json', JSON.stringify(sim.serialize()));
     case 'GET /api/world.mcfunction':
       return sendFile(res, `${sim.designName ?? 'world'}.mcfunction`, 'text/plain; charset=utf-8', sim.exportMcfunction());
+    case 'GET /api/materials':
+      return sendJson(res, 200, sim.materials());
     case 'POST /api/new':
       sim.newWorld({ floor: 32 });
       return sendJson(res, 200, { ok: true });
@@ -132,6 +134,7 @@ wss.on('connection', (ws) => {
       else if (m.type === 'pause') sim.setRunning(false);
       else if (m.type === 'resume') sim.setRunning(true);
       else if (m.type === 'step') sim.step(Math.max(1, Math.min(10000, m.n | 0 || 1)));
+      else if (m.type === 'rewind') sim.rewind(Math.max(1, Math.min(100000, m.n | 0 || 1)));
       else if (m.type === 'tps') sim.setTps(m.tps);
       else if (m.type === 'restart') sim.restart();
       else if (m.type === 'chunk') sim.toggleChunk(m.cx | 0, m.cz | 0);
@@ -344,9 +347,11 @@ function buildMcpServer() {
   tool(
     server,
     'sim_control',
-    'Control real-time simulation shown in the viewer: pause, resume, step (value = ticks), set_tps (value = ticks per second, vanilla = 20).',
-    { action: z.enum(['pause', 'resume', 'step', 'set_tps']), value: z.number().optional() },
+    'Control real-time simulation shown in the viewer: pause, resume, step (value = ticks), set_tps (value = ticks per second, vanilla = 20), ' +
+      'rewind (value = ticks to go back; edits made after that point are undone; status.historyStart is the oldest reachable game time).',
+    { action: z.enum(['pause', 'resume', 'step', 'set_tps', 'rewind']), value: z.number().optional() },
     ({ action, value }) => {
+      if (action === 'rewind') return { ...sim.rewind(Math.max(0, value ?? 1)), ...sim.status() };
       if (action === 'pause') sim.setRunning(false);
       else if (action === 'resume') sim.setRunning(true);
       else if (action === 'step') sim.step(Math.max(1, Math.min(100000, value ?? 1)));
@@ -371,6 +376,7 @@ function buildMcpServer() {
       else if (action === 'freeze') for (const [cx, cz] of chunks ?? []) w.frozenChunks.add(`${cx},${cz}`);
       else if (chunks?.length) for (const [cx, cz] of chunks) w.frozenChunks.delete(`${cx},${cz}`);
       else w.frozenChunks.clear();
+      sim.markEdited();
       return { action, frozenChunks: [...w.frozenChunks] };
     },
   );
@@ -394,6 +400,23 @@ function buildMcpServer() {
     sim.load(name);
     return `loaded ${name}: ${sim.world.blocks.size} blocks, time ${sim.world.time}`;
   });
+
+  tool(
+    server,
+    'material_list',
+    'Items needed to build the world (or the box from..to): count, full stacks + rest, and shulker boxes (27 stacks) per item. ' +
+      'Dust counts as redstone, wall torches as torches, farmland as dirt, stems as seeds, water as water buckets; piston heads are not counted; moving blocks count as the block they carry.',
+    { from: z.tuple([coord, coord, coord]).optional(), to: z.tuple([coord, coord, coord]).optional() },
+    ({ from, to }) => {
+      const list = sim.materials(from, to);
+      if (!list.length) return '(nothing to build)';
+      const total = list.reduce((n, m) => n + m.count, 0);
+      return [
+        `${total} items, ${list.length} kinds`,
+        ...list.map((m) => `${m.item}: ${m.count} = ${m.stacks} x ${m.stackSize}${m.rest ? ` + ${m.rest}` : ''} (${m.shulkers} shulker)`),
+      ].join('\n');
+    },
+  );
 
   tool(server, 'list_designs', 'List saved designs.', {}, () => sim.listDesigns().join('\n') || '(none)');
 

@@ -15,8 +15,33 @@ import {
   MIN_Y,
   MAX_Y,
 } from '../engine/index.js';
+import { cloneWorld, cloneDeep } from '../engine/clone.js';
 
 const ARROW = { north: '↑', south: '↓', east: '→', west: '←', up: 'U', down: 'D' };
+
+// Rewind history: an exact copy of the world every SNAP_EVERY game ticks and before the first
+// tick after an edit. Going back restores the latest copy at or before the target and runs the
+// remaining ticks again (the engine is deterministic). Copies are kept within a memory budget.
+const SNAP_EVERY = 32;
+const HISTORY_BYTES = 256 * 1024 * 1024;
+const MIN_SNAPSHOTS = 4;
+const MAX_SNAPSHOTS = 512;
+
+// Material list: the item a block state is built from (null = nothing to place), and stack sizes.
+const ITEM_FOR = {
+  air: null,
+  piston_head: null,
+  moving_piston: null,
+  redstone_wire: 'redstone',
+  redstone_wall_torch: 'redstone_torch',
+  water: 'water_bucket',
+  farmland: 'dirt',
+  melon_stem: 'melon_seeds',
+  attached_melon_stem: 'melon_seeds',
+  pumpkin_stem: 'pumpkin_seeds',
+  attached_pumpkin_stem: 'pumpkin_seeds',
+};
+const STACK = { water_bucket: 1 };
 
 export class Simulation {
   constructor({ designsDir }) {
@@ -27,6 +52,9 @@ export class Simulation {
     this.designName = null; // the design the world was last loaded from / saved to
     this.trap = null; // chunk-border trap (see setTrap)
     this.paper = false; // Paper's piston move order (world.paper)
+    this.history = []; // rewind snapshots, oldest first (see SNAP_EVERY)
+    this._editSeq = 0; // bumped by every edit; a snapshot is due when it differs from _snapSeq
+    this._snapSeq = -1;
     this.newWorld({ floor: 32 });
     this._last = performance.now();
     this._acc = 0;
@@ -43,6 +71,7 @@ export class Simulation {
       for (let x = 0; x < floor; x++) for (let z = 0; z < floor; z++) this.world.setRaw(pos(x, floorY, z), st);
     }
     this.world.flushChanged();
+    this._resetHistory();
     this.broadcast({ type: 'snapshot', ...this.snapshot() });
   }
 
@@ -86,18 +115,120 @@ export class Simulation {
 
   /** One game tick, with the viewer's server-test options (Paper move order, chunk-border trap). */
   tickOnce() {
+    if (this._editSeq !== this._snapSeq) this._takeSnapshot(true);
     const w = this.world;
     w.paper = this.paper;
     w.pistonEvent = this.trap ? this._trapHook : null;
     w.tick();
     const t = this.trap;
-    if (!t) return;
-    if (t.left > 0 && --t.left === 0) {
-      for (const k of t.frozen) w.frozenChunks.delete(k);
-      if (t.frozen.length && t.reload) w.reloadChunks(new Set(t.frozen));
-      t.frozen = [];
-      t.wait = t.cooldown;
-    } else if (t.left === 0 && t.wait > 0) t.wait--;
+    if (t) {
+      if (t.left > 0 && --t.left === 0) {
+        for (const k of t.frozen) w.frozenChunks.delete(k);
+        if (t.frozen.length && t.reload) w.reloadChunks(new Set(t.frozen));
+        t.frozen = [];
+        t.wait = t.cooldown;
+      } else if (t.left === 0 && t.wait > 0) t.wait--;
+    }
+    if (w.time % SNAP_EVERY === 0) this._takeSnapshot(false);
+  }
+
+  // ---------------------------------------------------------------- rewind
+
+  /** Call after anything that changes the world outside a tick (the next tick snapshots first). */
+  markEdited() {
+    this._editSeq++;
+  }
+
+  _resetHistory() {
+    this.history = [];
+    this._editSeq++;
+    this._takeSnapshot(false);
+  }
+
+  /** `edited`: taken after edits made at this game time (rewinding to this time undoes them). */
+  _takeSnapshot(edited) {
+    const w = this.world;
+    const entry = { time: w.time, edited, world: cloneWorld(w), trap: cloneDeep(this.trap), paper: this.paper };
+    const last = this.history[this.history.length - 1];
+    if (last && last.time === w.time) this.history[this.history.length - 1] = entry;
+    else this.history.push(entry);
+    this._snapSeq = this._editSeq;
+    // memory budget: blocks in the index's 16^3 sections cost 32 KB each, map entries ~100 B
+    let sections = 0;
+    for (const col of w.blocks._cols?.values() ?? []) for (const sec of col) if (sec) sections++;
+    const bytes = sections * 32768 + w.blocks.size * 100 + w.blockEntities.size * 300 + 4096;
+    const cap = Math.max(MIN_SNAPSHOTS, Math.min(MAX_SNAPSHOTS, Math.floor(HISTORY_BYTES / bytes)));
+    if (this.history.length > cap) this.history.splice(0, this.history.length - cap);
+  }
+
+  /** The oldest game time rewind can reach. */
+  historyStart() {
+    return this.history.length ? this.history[0].time : this.world.time;
+  }
+
+  /**
+   * Goes back `ticks` game ticks (as far as the history reaches): restores the latest snapshot at
+   * or before the target and runs forward to it. Edits made after that point are undone.
+   */
+  rewind(ticks) {
+    const now = this.world.time;
+    const target = Math.max(this.historyStart(), now - Math.max(0, Math.floor(ticks)));
+    // the latest snapshot before the target, or at it if it holds no edits made at that time
+    let i = this.history.length - 1;
+    while (i > 0 && (this.history[i].time > target || (this.history[i].time === target && this.history[i].edited))) i--;
+    const snap = this.history[i];
+    if (!snap || snap.time > target) return { time: now, wanted: now - ticks, reached: now };
+    this.history.length = i + 1;
+    const old = this.world;
+    this.world = cloneWorld(snap.world);
+    this.trap = cloneDeep(snap.trap);
+    this.paper = snap.paper;
+    if (this.trap) this._trapHook = (ev) => this._trapEvent(ev);
+    this._snapSeq = this._editSeq;
+    while (this.world.time < target) this.tickOnce();
+    // tell the viewer what differs from the world it shows
+    const w = this.world;
+    w.changed.clear();
+    for (const [k, s] of w.blocks) if (old.blocks.get(k) !== s) w.changed.add(k);
+    for (const k of old.blocks.keys()) if (!w.blocks.has(k)) w.changed.add(k);
+    for (const k of w.blockEntities.keys()) w.changed.add(k);
+    for (const k of old.blockEntities.keys()) w.changed.add(k);
+    this._acc = 0;
+    this.flush();
+    return { time: this.world.time, wanted: now - ticks, reached: this.world.time };
+  }
+
+  // ---------------------------------------------------------------- material list
+
+  /**
+   * The items a build takes: one entry per item with its count, full stacks and shulker boxes
+   * (27 stacks each). Moving blocks count as the block they carry. Optional box [from, to].
+   */
+  materials(from, to) {
+    const w = this.world;
+    const lo = from && to ? from.map((v, i) => Math.min(v, to[i])) : null;
+    const hi = from && to ? from.map((v, i) => Math.max(v, to[i])) : null;
+    const counts = new Map();
+    const add = (state, n = 1) => {
+      let id = state.id;
+      let item = id in ITEM_FOR ? ITEM_FOR[id] : id;
+      if (item && /_slab$/.test(id) && state.props.type === 'double') n *= 2;
+      if (item) counts.set(item, (counts.get(item) ?? 0) + n);
+    };
+    for (const [key, s] of w.blocks) {
+      const [x, y, z] = key.split(',').map(Number);
+      if (lo && (x < lo[0] || y < lo[1] || z < lo[2] || x > hi[0] || y > hi[1] || z > hi[2])) continue;
+      if (s.id === 'moving_piston') {
+        const be = w.blockEntities.get(key);
+        if (be?.movedState && be.movedState.id !== 'piston_head') add(be.movedState);
+      } else add(s);
+    }
+    return [...counts]
+      .map(([item, count]) => {
+        const stack = STACK[item] ?? 64;
+        return { item, count, stackSize: stack, stacks: Math.floor(count / stack), rest: count % stack, shulkers: +(count / stack / 27).toFixed(2) };
+      })
+      .sort((a, b) => b.count - a.count || a.item.localeCompare(b.item));
   }
 
   // ---------------------------------------------------------------- chunk-border trap (viewer)
@@ -111,6 +242,7 @@ export class Simulation {
    */
   setTrap({ border, mode = 'freeze', hold = 200, reload = false, cooldown = 200 }) {
     this.clearTrap();
+    this.markEdited();
     this.trap = { border: Math.round(border / 16) * 16, mode, hold, reload, cooldown, fired: 0, left: 0, wait: 0, frozen: [] };
     this._trapHook = (ev) => this._trapEvent(ev);
     this.broadcast({ type: 'status', ...this.status() });
@@ -121,11 +253,13 @@ export class Simulation {
     if (t) for (const k of t.frozen) this.world.frozenChunks.delete(k);
     this.trap = null;
     this.world.pistonEvent = null;
+    this.markEdited();
     this.broadcast({ type: 'status', ...this.status() });
   }
 
   setPaper(on) {
     this.paper = !!on;
+    this.markEdited();
     this.broadcast({ type: 'status', ...this.status() });
   }
 
@@ -152,6 +286,7 @@ export class Simulation {
   status() {
     return {
       time: this.world.time,
+      historyStart: this.historyStart(),
       running: this.running,
       tps: this.tps,
       design: this.designName,
@@ -166,6 +301,7 @@ export class Simulation {
   /** Vanilla-accurate save + reload of every chunk (see World.simulateRestart). */
   restart() {
     this.world.simulateRestart();
+    this.markEdited();
     this.flush();
   }
 
@@ -174,11 +310,13 @@ export class Simulation {
   toggleChunk(cx, cz) {
     const key = `${cx},${cz}`;
     if (!this.world.frozenChunks.delete(key)) this.world.frozenChunks.add(key);
+    this.markEdited();
     this.flush();
   }
 
   thawAll() {
     this.world.frozenChunks.clear();
+    this.markEdited();
     this.flush();
   }
 
@@ -252,6 +390,7 @@ export class Simulation {
   setBlock(x, y, z, blockStr, mode = 'place') {
     const p = pos(x, y, z);
     const { id, props } = this.parseState(blockStr);
+    this.markEdited();
     if (id === 'air') {
       this.world.breakBlock(p);
       return this.world.getBlockState(p);
@@ -270,6 +409,7 @@ export class Simulation {
     const p = pos(x, y, z);
     const s = this.world.getBlockState(p);
     if (s.block.isAir) throw new Error(`No block at ${p}`);
+    this.markEdited();
     const ok = this.world.useBlock(p);
     return { ok, state: this.world.getBlockState(p).key };
   }
@@ -278,6 +418,7 @@ export class Simulation {
     const p = pos(x, y, z);
     const s = this.world.getBlockState(p);
     if (typeof s.block.setSignal !== 'function') throw new Error(`${s.id} at ${p} has no adjustable comparator output (use a barrel)`);
+    this.markEdited();
     s.block.setSignal(this.world, p, value);
     return { ok: true, signal: this.world.powerLevel(p) };
   }
@@ -312,7 +453,7 @@ export class Simulation {
     sample();
     for (let t = 0; t < ticks; t++) {
       doActions(t);
-      this.world.tick();
+      this.tickOnce();
       sample();
     }
     this.flush();
@@ -471,6 +612,7 @@ export class Simulation {
     w.flushChanged();
     this.world = w;
     this.designName = null;
+    this._resetHistory();
     this.broadcast({ type: 'snapshot', ...this.snapshot() });
   }
 
@@ -511,6 +653,7 @@ export class Simulation {
     w.flushChanged();
     this.world = w;
     this.designName = null;
+    this._resetHistory();
     this.broadcast({ type: 'snapshot', ...this.snapshot() });
     return { placed, skipped };
   }
