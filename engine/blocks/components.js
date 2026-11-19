@@ -160,6 +160,7 @@ defineBlock({
     const next = withProp(state, 'powered', !state.props.powered);
     world.setBlock(pos, next, F.ALL);
     this.updateNeighbours(world, pos, next);
+    world.gameEvent(next.props.powered ? 'block_activate' : 'block_deactivate', pos);
     return true;
   },
 });
@@ -177,6 +178,7 @@ function defineButton(id, pressTicks, color) {
       world.setBlock(pos, next, F.ALL);
       this.updateNeighbours(world, pos, next);
       world.scheduleTick(pos, this, this.pressTicks);
+      world.gameEvent('block_activate', pos);
       return true;
     },
     tick(world, pos, state) {
@@ -184,6 +186,7 @@ function defineButton(id, pressTicks, color) {
         // no projectiles are simulated, so the button always releases
         world.setBlock(pos, withProp(state, 'powered', false), F.ALL);
         this.updateNeighbours(world, pos, state);
+        world.gameEvent('block_deactivate', pos);
       }
     },
   });
@@ -405,12 +408,13 @@ defineBlock({
     const d = this.facing(state);
     let bp = pos.rel(d);
     let bs = world.getBlockState(bp);
+    // getAnalogOutputSignal(level, pos, direction.getOpposite()): shelves only answer from the front
     if (bs.block.hasAnalogOutput(bs)) {
-      i = bs.block.getAnalogOutput(world, bp, bs);
+      i = bs.block.getAnalogOutput(world, bp, bs, d.opposite);
     } else if (i < 15 && bs.block.isConductor(bs, world, bp)) {
       bp = bp.rel(d);
       bs = world.getBlockState(bp);
-      if (bs.block.hasAnalogOutput(bs)) i = bs.block.getAnalogOutput(world, bp, bs);
+      if (bs.block.hasAnalogOutput(bs)) i = bs.block.getAnalogOutput(world, bp, bs, d.opposite);
     }
     return i;
   },

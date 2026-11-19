@@ -6,8 +6,8 @@ bir 3D web görüntüleyici içerir.
 
 [English](README.md) · **[Tarayıcıda dene](https://ziacud.github.io/redstone-sim/)** (kurulum yok; tasarımlar tarayıcında kalır)
 
-- Gerçek Minecraft 26.3'ten alınmış, yalnızca desteklenen blokları kullanan **928 kaydın
-  hepsinde** oyunla blok blok aynı sonucu verir (1311 kayıt henüz olmayan blok ya da özellik
+- Gerçek Minecraft 26.3'ten alınmış, yalnızca desteklenen blokları kullanan **1088 kaydın
+  hepsinde** oyunla blok blok aynı sonucu verir (1151 kayıt henüz olmayan blok ya da özellik
   gerektiriyor; bkz. [Doğruluk](#doğruluk)).
 - Piston, yapışkan piston, slime ve honey, observer, quasi-connectivity ve BUD, 0-tick, blok
   düşürme, update skipping, meşale yanması, flying machine.
@@ -21,6 +21,8 @@ bir 3D web görüntüleyici içerir.
 - **Malzeme listesi:** bir yapının gerektirdiği eşyalar, stack ve shulker kutusu sayıları.
 - Hopper, sandık, dropper, dispenser, varil ve shulker kutusu, içlerindeki eşyalarla; nota
   bloğu ve kapılar.
+- **Sculk sensörler** (titreşimler, frekanslar, yünün titreşimi kesmesi, ametist rezonansı),
+  oyunun tarifleriyle **crafter**, kompostlayıcı, tuzak teli kancası, çan, kürsü, pasta ve raflar.
 - **Litematica** şemalarını (`.litematic`) açar ve kaydeder, gerçek Java dünyalarını (Anvil
   bölge dosyaları) okur, oyuna yapıştırılabilecek `.mcfunction` dosyaları yazar.
 
@@ -46,7 +48,10 @@ comparator (karşılaştır/çıkar, konteyner okuma), lamba, observer, piston v
 lambalar (tüm oksitlenme ve waxed türleri), ahşap ve demir tuzak kapıları ve kapılar, nota
 bloğu (enstrüman alttaki bloktan ya da üstteki kafadan), hopper (bekleme süresi, kilit), sandık
 ve çift sandık (üstünde iletken blok varsa comparator okuyamaz), dropper, dispenser, varil ve
-shulker kutusu, cam, basamak, obsidyen, beton, yün, kuvars, metal bloklar, kalaslar, kütükler,
+shulker kutusu, sculk sensör ve kalibre sculk sensör (şalter, buton, kapı, tuzak kapısı, nota
+bloğu, piston, konan ve kırılan bloklardan gelen titreşimler; yün keser, ametist rezonans yapar),
+crafter (şekilli, şekilsiz ve dönüştürme tarifleri; önünde konteyner yoksa ürün kaybolur),
+kompostlayıcı, tuzak teli kancası ve ip, çan, kürsü, pasta, ahşap raflar, ametist, cam, basamak, obsidyen, beton, yün, kuvars, metal bloklar, kalaslar, kütükler,
 taş türleri ve çiftlik blokları: toprak, çim, kum, tarla toprağı, su (statik kaynak, akış yok),
 şeker kamışı, karpuz, balkabağı ve sapları.
 
@@ -171,13 +176,14 @@ yönde (4 dönüş ve aynalanmış halleri) koşulur ve üç seviyede kıyaslan�
 - `order`: her blok değişikliği, komşu ve shape update'i, zamanlanmış tick ve blok olayı,
   oyundaki sırasıyla
 
-**Desteklenen bloklarla kurulmuş 928 kaydın hepsi üç seviyede de eşleşiyor** (çalıştırıcı
-`ran 928 traces, skipped 1311 (unsupported)` yazar). Bunlara konuma bağlı toz, QC/BUD, 0-tick,
+**Desteklenen bloklarla kurulmuş 1088 kaydın hepsi üç seviyede de eşleşiyor** (çalıştırıcı
+`ran 1088 traces, skipped 1151 (unsupported)` yazar). Bunlara konuma bağlı toz, QC/BUD, 0-tick,
 blok düşürme, update skipping, meşale yanması, flying machine, piston kapıları, hopper
-zincirleri, konteyner okuyan comparator'lar, nota blokları ve kapılar dahil. Atlanan
+zincirleri, konteyner okuyan comparator'lar, nota blokları, kapılar, sculk sensörler, crafter,
+kompostlayıcı, tuzak teli kancası, çan, kürsü, pasta ve raflar dahil. Atlanan
 kayıtlar simülatörde henüz olmayan bir şey kullanıyor: çoğu entity (796), redstone deneyleri
-(112) ve su akışı (80), kalanı sculk sensör, crafter, kompostlayıcı, ray gibi bloklar ya da özel
-dispenser eşyaları.
+(112) ve su akışı (80), kalanı yapraklar, raylar, TNT, kayıt ortasında eşyayla blok koyma ya da
+özel dispenser eşyaları.
 
 Kayıtlar konteyner içeriklerini de tutar; `--items` bunları da karşılaştırır (oyunun rastgele
 tohumuna bağlı rastgele slot seçen bir dispenser kaydı dışında hepsi eşleşiyor).
@@ -190,7 +196,7 @@ node scripts/fetch-tickwright.js      # kayıtları vendor/tickwright içine ind
 node conformance/run.js --verbose     # özet ve ilk farklılıklar
 ```
 
-İndirme scripti 928/928 sonucunun ölçüldüğü tickwright commit'ine sabitlenmiştir.
+İndirme scripti 1088/1088 sonucunun ölçüldüğü tickwright commit'ine sabitlenmiştir.
 
 ## Testler
 
@@ -200,7 +206,8 @@ npm test
 
 Birim testleri bilinen zamanlamaları kontrol eder (repeater gecikmeleri, lamba 4 gt, meşale
 yanması, observer, piston zamanlaması, QC/BUD, yapışkan piston blok düşürme, 12 blok sınırı,
-hopper, sandık, dropper, nota bloğu, kapı, geri sarma),
+hopper, sandık, dropper, nota bloğu, kapı, geri sarma, sculk sensör, crafter tarifleri,
+kompostlayıcı, tuzak teli kancası, pasta, kürsü),
 ayrıca MCP sunucusunu uçtan uca ve tüm uyumluluk kayıtlarını test eder (kayıtlar indirilmemişse
 bu test atlanır).
 

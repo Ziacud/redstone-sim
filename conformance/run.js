@@ -77,6 +77,8 @@ function tState(str, tr) {
     const [k, v] = p.split('=');
     if (['north', 'east', 'south', 'west'].includes(k)) return `${tDir(k, tr)}=${v}`;
     if (k === 'facing') return `${k}=${tDir(v, tr)}`;
+    // the crafter's FrontAndTop: both parts turn
+    if (k === 'orientation') return `${k}=${v.split('_').map((d) => tDir(d, tr)).join('_')}`;
     // Block.mirror: doors swap their hinge, chests their half
     if (tr.mirror && k === 'hinge') return `${k}=${v === 'left' ? 'right' : 'left'}`;
     if (tr.mirror && k === 'type' && (v === 'left' || v === 'right')) return `${k}=${v === 'left' ? 'right' : 'left'}`;
@@ -113,7 +115,7 @@ export function runTrace(trace) {
   if (fx.file.includes('experiments')) throw new Unsupported('redstone experiments enabled (out of scope)');
   if (fx.start_entities?.length || trace.entities?.length) throw new Unsupported('entities');
   for (const s of fx.stimuli ?? []) {
-    if (!['use', 'set', 'destroy'].includes(s.action)) throw new Unsupported(`stimulus ${s.action}`);
+    if (!['use', 'set', 'destroy', 'page'].includes(s.action)) throw new Unsupported(`stimulus ${s.action}`);
   }
   if (Object.values(fx.palette).some((s) => /(^|:)water\b|waterlogged=true/.test(s))) {
     throw new Unsupported('fluid flow (water is static in this engine)');
@@ -155,7 +157,14 @@ export function runTrace(trace) {
     // Container.setItem, once per item (wakes comparators where setItem calls setChanged)
     for (const it of c.items) be.setItem(it.slot, ItemStack.of(it.id, it.count));
   }
-  if (fx.lecterns?.length) throw new Unsupported('lectern');
+  for (const l of fx.lecterns ?? []) {
+    // a written book of `pages` pages, open at `page`
+    const be = w.getBlockEntity(at(tPos(l.pos, size0, tr)));
+    if (!be || typeof be.setPage !== 'function') throw new Unsupported('lectern');
+    be.pageCount = l.pages;
+    be.page = 0;
+    if (l.page) be.setPage(l.page); // the harness turns the page: a 2 gt pulse starts
+  }
   w.flushChanged();
   // The world after setup must match the captured initial blocks.
   const init = new Map(trace.initial.map(([x, y, z, s]) => [`${x},${y},${z}`, canonical(s)]));
@@ -177,7 +186,14 @@ export function runTrace(trace) {
     w.rec.phase = 'input';
     for (const s of stimuli.filter((s) => s.tick === t)) {
       const p = at(s.pos);
+      // containers are emptied before the action (no items spill); the captures show no update
+      // from a lectern there, so its book stays
+      if (s.discard_contents) {
+        const be = w.getBlockEntity(p);
+        if (be?.items) be.clearContent();
+      }
       if (s.action === 'use') w.useBlock(p);
+      else if (s.action === 'page') w.getBlockEntity(p).setPage(s.page);
       else if (s.action === 'destroy') w.destroyBlock(p, false);
       else if (s.action === 'set') {
         const st = toState(tState(s.state, tr));

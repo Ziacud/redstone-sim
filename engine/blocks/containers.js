@@ -90,6 +90,11 @@ export class ContainerBlockEntity {
     }
   }
 
+  /** Clearable.clearContent (BaseContainerBlockEntity: getItems().clear(), no update) */
+  clearContent() {
+    this.items.fill(EMPTY);
+  }
+
   /** Puts items in without any update (loading a design). */
   fill(list) {
     for (const { slot, id, count } of list) this.items[slot] = ItemStack.of(id, count);
@@ -199,6 +204,8 @@ export function addItem(from, container, stack, dir) {
 /** HopperBlockEntity.getContainerAt (block containers only: no entities are simulated). */
 export function getContainerAt(world, pos) {
   const state = world.getBlockState(pos);
+  // WorldlyContainerHolder (the composter)
+  if (state.block.getWorldlyContainer) return state.block.getWorldlyContainer(world, pos, state);
   if (!state.block.hasBlockEntity(state)) return null;
   const be = world.getBlockEntity(pos);
   if (!(be instanceof ContainerBlockEntity)) return null;
@@ -466,7 +473,10 @@ function dispenserBlock(id, dropper) {
       const be = world.getBlockEntity(pos);
       if (!(be instanceof DispenserBlockEntity)) return;
       const slot = be.getRandomSlot(world.random);
-      if (slot < 0) return;
+      if (slot < 0) {
+        if (!dropper) world.gameEvent('block_activate', pos, be.state);
+        return;
+      }
       const stack = be.getItem(slot);
       if (!dropper) {
         be.setItem(slot, defaultDispense(stack));

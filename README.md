@@ -5,8 +5,8 @@ assistant such as Claude can build and test circuits) and a live 3D web viewer.
 
 [Türkçe](README.tr.md) · **[Try it in your browser](https://ziacud.github.io/redstone-sim/)** (no install; designs stay in your browser)
 
-- Matches the real game, block change by block change, on **all 928** real Minecraft 26.3
-  captures that use only supported blocks (another 1311 captures need blocks or features it does
+- Matches the real game, block change by block change, on **all 1088** real Minecraft 26.3
+  captures that use only supported blocks (another 1151 captures need blocks or features it does
   not have yet; see [Accuracy](#accuracy)).
 - Pistons, sticky pistons, slime and honey, observers, quasi-connectivity and BUDs, 0-ticks,
   block dropping, update skipping, torch burnout, flying machines.
@@ -19,6 +19,9 @@ assistant such as Claude can build and test circuits) and a live 3D web viewer.
 - **Material list:** the items, stacks and shulker boxes a build takes.
 - Hoppers, chests, droppers, dispensers, barrels and shulker boxes with their items; note blocks
   and doors.
+- **Sculk sensors** (vibrations, frequencies, occlusion by wool, amethyst resonance), the
+  **crafter** with the game's crafting recipes, composters, tripwire hooks, bells, lecterns, cakes
+  and shelves.
 - Opens and saves **Litematica** schematics (`.litematic`), reads real Java worlds (Anvil region
   files) and writes `.mcfunction` files you can paste into the game.
 
@@ -44,7 +47,11 @@ piston and sticky piston (12-block push limit, quasi-connectivity, block droppin
 honey), redstone block, copper bulbs (every oxidation stage, waxed or not), wooden and iron
 trapdoors and doors, note blocks (instrument from the block below or a head above), hoppers
 (cooldown, locking), chests and double chests (a conductor above blocks the comparator
-reading), droppers, dispensers, barrels and shulker boxes, glass, slabs, obsidian, concrete,
+reading), droppers, dispensers, barrels and shulker boxes, sculk sensors and calibrated sculk sensors
+(vibrations from levers, buttons, doors, trapdoors, note blocks, pistons, placed and broken
+blocks; wool blocks them; amethyst resonates), crafter (shaped, shapeless and transmute
+recipes; with no container in front the result is discarded), composter, tripwire hook and
+string, bell, lectern, cake, the wooden shelves, amethyst, glass, slabs, obsidian, concrete,
 wool, quartz, metal blocks, planks, logs, stone variants, and the farm blocks dirt, grass, sand,
 farmland, water (a static source: flow is not simulated), sugar cane, melon, pumpkin and their
 stems.
@@ -169,13 +176,14 @@ compared at three levels:
 - `order`: every block change, neighbour and shape update, scheduled tick and block event, in
   the game's order
 
-**All 928 captures built from supported blocks match at all three levels** (the runner prints
-`ran 928 traces, skipped 1311 (unsupported)`). They include location-dependent dust, QC/BUD,
+**All 1088 captures built from supported blocks match at all three levels** (the runner prints
+`ran 1088 traces, skipped 1151 (unsupported)`). They include location-dependent dust, QC/BUD,
 0-ticks, block dropping, update skipping, torch burnout, flying machines, piston doors, hopper
-chains, comparators reading containers, note blocks and doors. The skipped captures use
+chains, comparators reading containers, note blocks, doors, sculk sensors, crafters,
+composters, tripwire hooks, bells, lecterns, cakes and shelves. The skipped captures use
 something the simulator does not have yet: mostly entities (796), the redstone experiments
-(112) and water flow (80), the rest blocks such as sculk sensors, crafters, composters and rails,
-or special dispenser items.
+(112) and water flow (80), the rest leaves, rails, TNT, placing blocks with an item mid-trace, or
+special dispenser items.
 
 The captures also record container contents; `--items` compares them too (all match except
 one dispenser capture whose random slot depends on the game's random seed).
@@ -189,7 +197,7 @@ node scripts/fetch-tickwright.js      # downloads the captures into vendor/tickw
 node conformance/run.js --verbose     # summary and first differences
 ```
 
-The fetch script is pinned to the tickwright commit the 928/928 result was measured on.
+The fetch script is pinned to the tickwright commit the 1088/1088 result was measured on.
 
 ## Tests
 
@@ -199,7 +207,8 @@ npm test
 
 Unit tests check known timings (repeater delays, lamp 4 gt, torch burnout, observers, piston
 timing, QC/BUD, sticky piston block dropping, the 12-block limit, hoppers, chests, droppers,
-note blocks, doors, rewind), the MCP server end to end, and every conformance capture (skipped until the captures are downloaded).
+note blocks, doors, rewind, sculk sensors, crafter recipes, composters, tripwire hooks,
+cakes, lecterns), the MCP server end to end, and every conformance capture (skipped until the captures are downloaded).
 
 ## Credits
 

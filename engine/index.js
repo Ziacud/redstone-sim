@@ -8,6 +8,9 @@ import './blocks/farm.js';
 import './blocks/trapdoor.js';
 import './blocks/noteblock.js';
 import './blocks/containers.js';
+import './blocks/sculk.js';
+import './blocks/crafting.js';
+import './blocks/small.js';
 
 export { World, F, PRIORITY, MIN_Y, MAX_Y } from './world.js';
 export { Pos, pos, dirByName, ALL, HORIZONTAL } from './dir.js';

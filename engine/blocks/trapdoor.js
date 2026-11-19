@@ -30,13 +30,17 @@ function trapdoor(id, color, byHand) {
       const powered = world.hasNeighborSignal(pos);
       if (powered !== state.props.powered) {
         let s = state;
-        if (s.props.open !== powered) s = withProp(s, 'open', powered);
+        if (s.props.open !== powered) {
+          s = withProp(s, 'open', powered);
+          world.gameEvent(powered ? 'block_open' : 'block_close', pos);
+        }
         world.setBlock(pos, withProp(s, 'powered', powered), F.CLIENTS);
       }
     },
     use(world, pos, state) {
       if (!byHand) return false;
       world.setBlock(pos, withProp(state, 'open', !state.props.open), F.CLIENTS);
+      world.gameEvent(state.props.open ? 'block_close' : 'block_open', pos);
       return true;
     },
   });

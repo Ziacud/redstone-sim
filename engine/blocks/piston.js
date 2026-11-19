@@ -307,6 +307,7 @@ function pistonBase(id, sticky) {
       if (id === 0) {
         if (!this.moveBlocks(world, pos, direction, true)) return false;
         world.setBlock(pos, extendedState, F.MOVE_BY_PISTON | F.CLIENTS | F.NEIGHBORS);
+        world.gameEvent('block_activate', pos, extendedState);
       } else if (id === 1 || id === 2) {
         const headBe = world.getBlockEntity(pos.rel(direction));
         if (headBe instanceof PistonMovingBlockEntity) headBe.finalTick();
@@ -354,6 +355,7 @@ function pistonBase(id, sticky) {
         } else {
           world.removeBlock(pos.rel(direction), false);
         }
+        world.gameEvent('block_deactivate', pos, moving);
       }
       return true;
     },
@@ -385,6 +387,7 @@ function pistonBase(id, sticky) {
         const bp = toDestroy[k];
         const bs = world.getBlockState(bp);
         world.setBlock(bp, world.air, F.KNOWN_SHAPE | F.CLIENTS);
+        world.gameEvent('block_destroy', bp, bs);
         affected[j++] = bs;
       }
       const movingId = getBlock('moving_piston');

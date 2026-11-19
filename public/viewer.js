@@ -268,6 +268,16 @@ function buildModel(id, p, extra) {
     box(g, 1.01, 0.08, 1.01, 0.5, 0.5, 0.5, mat(0x2a2a2a));
     return g;
   }
+  if (id.endsWith('_shelf')) {
+    // a back board and a shelf plank; the front faces `facing`
+    const m = mat(0x9c7a4a, { edges: true });
+    const [fx, , fz] = DIRV[p.facing];
+    const t = 0.125;
+    box(g, fx ? t : 1, 1, fz ? t : 1, 0.5 - fx * (0.5 - t / 2), 0.5, 0.5 - fz * (0.5 - t / 2), m);
+    box(g, fx ? 0.5 : 1, t, fz ? 0.5 : 1, 0.5 - fx * 0.25, 0.4, 0.5 - fz * 0.25, m);
+    if (p.powered) box(g, fx ? 0.02 : 0.3, 0.1, fz ? 0.02 : 0.3, 0.5 - fx * (0.5 - t - 0.01), 0.85, 0.5 - fz * (0.5 - t - 0.01), torchHead(true));
+    return g;
+  }
   if (id.endsWith('_trapdoor')) {
     const m = mat(id === 'iron_trapdoor' ? 0xcfcfcf : 0x9c7a4a, { edges: true });
     const t = 3 / 16;
@@ -355,6 +365,90 @@ function buildModel(id, p, extra) {
     case 'note_block':
       box(g, 1, 1, 1, 0.5, 0.5, 0.5, mat(0x6b4630, { edges: true }));
       box(g, 0.5, 0.02, 0.5, 0.5, 1.0, 0.5, p.powered ? torchHead(true) : mat(0x2e1d12));
+      break;
+    case 'sculk_sensor':
+    case 'calibrated_sculk_sensor': {
+      // half-height slab; tendrils glow while active, dim during the cooldown
+      box(g, 1, 0.5, 1, 0.5, 0.25, 0.5, mat(id === 'sculk_sensor' ? 0x0f4f5c : 0x3d2b63, { edges: true }));
+      const phase = p.sculk_sensor_phase;
+      const tendril = phase === 'active' ? mat(0x6ff3ff, { emissive: 0x2fd8f0, emissiveIntensity: 1 }) : mat(phase === 'cooldown' ? 0x2e7f8a : 0x1b6e7a);
+      for (const [dx, dz] of [[0.3, 0.3], [0.7, 0.3], [0.3, 0.7], [0.7, 0.7]]) box(g, 0.08, 0.3, 0.08, dx, 0.65, dz, tendril);
+      if (id === 'calibrated_sculk_sensor') {
+        // amethyst on top, and a mark on the input side (opposite facing)
+        box(g, 0.2, 0.25, 0.2, 0.5, 0.62, 0.5, mat(0xb48ce8));
+        const [fx, , fz] = DIRV[OPP[p.facing]];
+        box(g, fx ? 0.04 : 0.4, 0.2, fz ? 0.04 : 0.4, 0.5 + fx * 0.5, 0.25, 0.5 + fz * 0.5, mat(0xd64a3a));
+      }
+      break;
+    }
+    case 'crafter': {
+      // the front face shows a grid; lit while crafting, red mark while triggered
+      const [front] = p.orientation.split('_');
+      const model = new THREE.Group();
+      box(model, 1, 1, 1, 0.5, 0.5, 0.5, mat(0x6b6b70, { edges: true }));
+      box(model, 0.6, 0.02, 0.6, 0.5, 1.0, 0.5, p.crafting ? mat(0xffd27a, { emissive: 0xffa630, emissiveIntensity: 0.8 }) : mat(0x3a3a3e));
+      if (p.triggered) box(model, 0.16, 0.02, 0.16, 0.5, 1.005, 0.5, torchHead(true));
+      g.add(orient(model, front));
+      break;
+    }
+    case 'composter': {
+      const m = mat(0x7a5a2e, { edges: true });
+      const t = 2 / 16;
+      box(g, 1, t, 1, 0.5, t / 2, 0.5, m);
+      for (const [w, d, x, z] of [[1, t, 0.5, t / 2], [1, t, 0.5, 1 - t / 2], [t, 1, t / 2, 0.5], [t, 1, 1 - t / 2, 0.5]]) box(g, w, 1, d, x, 0.5, z, m);
+      if (p.level > 0) {
+        const h = Math.min(7, p.level) * (2 / 16);
+        box(g, 1 - 2 * t, h, 1 - 2 * t, 0.5, t + h / 2, 0.5, mat(p.level === 8 ? 0xe8e4d0 : 0x5a7a2a));
+      }
+      break;
+    }
+    case 'tripwire_hook': {
+      // a ring on a stick against the wall behind it (opposite `facing`)
+      const [fx, , fz] = DIRV[p.facing];
+      box(g, fx ? 0.12 : 0.12, 0.5, fz ? 0.12 : 0.12, 0.5 - fx * 0.44, 0.45, 0.5 - fz * 0.44, mat(STICK));
+      box(g, fx ? 0.3 : 0.16, 0.16, fz ? 0.3 : 0.16, 0.5 - fx * 0.25, p.attached ? 0.2 : 0.35, 0.5 - fz * 0.25, p.powered ? torchHead(true) : mat(0x9a9a9a));
+      break;
+    }
+    case 'tripwire': {
+      const c = mat(p.powered ? 0xff6050 : p.attached ? 0xcfd8ff : 0xe0e0e0);
+      const y = p.attached ? 0.1 : 0.06;
+      box(g, 0.06, 0.02, 0.06, 0.5, y, 0.5, c);
+      for (const [d, on] of [['north', p.north], ['south', p.south], ['west', p.west], ['east', p.east]]) {
+        if (!on) continue;
+        const [dx, , dz] = DIRV[d];
+        box(g, dx ? 0.5 : 0.04, 0.02, dz ? 0.5 : 0.04, 0.5 + dx * 0.25, y, 0.5 + dz * 0.25, c);
+      }
+      break;
+    }
+    case 'cake': {
+      const w = 14 / 16;
+      const eaten = (p.bites * 2) / 16;
+      box(g, w - eaten, 0.5, w, 0.5 + eaten / 2, 0.25, 0.5, mat(0xf3e6d8, { edges: true }));
+      box(g, w - eaten + 0.01, 0.06, w + 0.01, 0.5 + eaten / 2, 0.47, 0.5, mat(0xc0392b));
+      break;
+    }
+    case 'bell': {
+      const gold = mat(0xe8c03a, { edges: true });
+      box(g, 0.5, 0.45, 0.5, 0.5, p.attachment === 'ceiling' ? 0.55 : 0.4, 0.5, gold);
+      box(g, 0.62, 0.1, 0.62, 0.5, p.attachment === 'ceiling' ? 0.32 : 0.17, 0.5, gold);
+      if (p.attachment === 'floor') {
+        const [fx, , fz] = DIRV[p.facing];
+        for (const s of [-1, 1]) box(g, fz ? 0.1 : 0.1, 0.95, fx ? 0.1 : 0.1, 0.5 + (fz ? s * 0.42 : 0), 0.475, 0.5 + (fx ? s * 0.42 : 0), mat(0x5a5a5a));
+      } else box(g, 0.08, 0.3, 0.08, 0.5, 0.85, 0.5, mat(0x5a5a5a));
+      if (p.powered) box(g, 0.14, 0.02, 0.14, 0.5, 0.64, 0.5, torchHead(true));
+      break;
+    }
+    case 'lectern': {
+      const wood = mat(0xa0784a, { edges: true });
+      box(g, 1, 0.125, 1, 0.5, 0.0625, 0.5, wood);
+      box(g, 0.5, 0.75, 0.5, 0.5, 0.5, 0.5, wood);
+      box(g, 1, 0.25, 0.9, 0.5, 0.9, 0.5, wood);
+      if (p.has_book) box(g, 0.7, 0.05, 0.6, 0.5, 1.04, 0.5, mat(0xeee6c8));
+      if (p.powered) box(g, 0.2, 0.02, 0.2, 0.5, 1.07, 0.5, torchHead(true));
+      break;
+    }
+    case 'amethyst_block':
+      box(g, 1, 1, 1, 0.5, 0.5, 0.5, mat(0x8561c5, { edges: true }));
       break;
     case 'barrel':
       box(g, 1, 1, 1, 0.5, 0.5, 0.5, mat(0x7a5530, { edges: true }));
@@ -867,7 +961,7 @@ function placement(id, face, fy) {
   if (/^((sticky_)?piston|dispenser|dropper)$/.test(id)) return `${id}[facing=${OPP[look]}]`;
   if (id === 'hopper') return `${id}[facing=${side ? OPP[face] : 'down'}]`;
   if (id === 'chest') return `${id}[facing=${OPP[horiz]}]`;
-  if (/_door$/.test(id)) return `${id}[facing=${horiz}]`;
+  if (/_door$/.test(id) || id === 'calibrated_sculk_sensor') return `${id}[facing=${horiz}]`;
   if (/_trapdoor$/.test(id))
     return side
       ? `${id}[facing=${face},half=${fy > 0.5 ? 'top' : 'bottom'}]`
@@ -875,6 +969,18 @@ function placement(id, face, fy) {
   if (/_slab$/.test(id)) return `${id}[type=${face === 'down' || (side && fy > 0.5) ? 'top' : 'bottom'}]`;
   if (/_(log|wood)$/.test(id)) return `${id}[axis=${side ? (face === 'east' || face === 'west' ? 'x' : 'z') : 'y'}]`;
   if (/shulker_box$/.test(id)) return `${id}[facing=${face}]`;
+  if (id === 'tripwire_hook') return side ? `${id}[facing=${face}]` : `${id}[facing=${OPP[horiz]}]`;
+  if (id === 'lectern' || /_shelf$/.test(id)) return `${id}[facing=${OPP[horiz]}]`;
+  if (id === 'bell') {
+    if (!side) return `${id}[attachment=${face === 'down' ? 'ceiling' : 'floor'},facing=${horiz}]`;
+    return `${id}[attachment=single_wall,facing=${OPP[face]}]`;
+  }
+  if (id === 'crafter') {
+    // CrafterBlock.getStateForPlacement: front = opposite of the look; top from the horizontal look
+    const front = OPP[look];
+    const top = front === 'down' ? OPP[horiz] : front === 'up' ? horiz : 'up';
+    return `${id}[orientation=${front}_${top}]`;
+  }
   return id;
 }
 
@@ -919,7 +1025,7 @@ const COMMON = [
   'redstone_wire', 'redstone_torch', 'repeater', 'comparator', 'lever', 'stone_button', 'oak_button', 'observer',
   'piston', 'sticky_piston', 'slime_block', 'honey_block', 'redstone_block', 'redstone_lamp', 'target', 'note_block',
   'copper_bulb', 'hopper', 'chest', 'barrel', 'dropper', 'dispenser', 'oak_door', 'iron_door', 'oak_trapdoor',
-  'iron_trapdoor', 'stone', 'smooth_stone', 'glass', 'obsidian', 'smooth_stone_slab', 'white_concrete', 'white_wool',
+  'iron_trapdoor', 'sculk_sensor', 'calibrated_sculk_sensor', 'amethyst_block', 'crafter', 'composter', 'tripwire_hook', 'tripwire', 'lectern', 'bell', 'oak_shelf', 'cake', 'stone', 'smooth_stone', 'glass', 'obsidian', 'smooth_stone_slab', 'white_concrete', 'white_wool',
 ];
 const swatch = (id) => {
   const c = BLOCK_COLORS[id];

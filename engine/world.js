@@ -30,6 +30,9 @@ class SeededRandom {
   nextInt(n) {
     return Math.floor(this.nextFloat() * n);
   }
+  nextDouble() {
+    return this.nextFloat();
+  }
 }
 
 export function seededRandom(seed) {
@@ -210,6 +213,8 @@ export class World {
     this.pendingTickers = [];
     this.tickersByPos = new Map();
     this.tickingBlockEntities = false;
+    // Game event listeners (vibration listeners of sculk sensors), in registration order
+    this.vibrationListeners = new Set();
 
     this.handlingTick = false;
     this.wireShouldSignal = true; // RedStoneWireBlock.shouldSignal (static in vanilla)
@@ -406,7 +411,19 @@ export class World {
   destroyBlock(pos, drop = true, recursionLeft = 512) {
     const st = this.getBlockState(pos);
     if (st.block.isAir) return false;
-    return this.setBlock(pos, this.air, F.ALL, recursionLeft);
+    const destroyed = this.setBlock(pos, this.air, F.ALL, recursionLeft);
+    if (destroyed) this.gameEvent('block_destroy', pos, st);
+    return destroyed;
+  }
+
+  /**
+   * Level.gameEvent at the centre of `pos` (GameEventDispatcher.post). `affected` is the context's
+   * affected block state (wool dampens). Listeners only queue a candidate, so their order does not
+   * matter.
+   */
+  gameEvent(event, pos, affected = null) {
+    if (this.vibrationListeners.size === 0) return;
+    for (const be of this.vibrationListeners) be.handleGameEvent(this, event, pos, affected);
   }
 
   /** Block.updateOrDestroy */
@@ -632,7 +649,11 @@ export class World {
     if ('world' in be) be.world = this;
     const old = this.blockEntities.get(be.pos.key);
     this.blockEntities.set(be.pos.key, be);
-    if (old && old !== be) old.removed = true;
+    if (old && old !== be) {
+      old.removed = true;
+      this.vibrationListeners.delete(old);
+    }
+    if (be.listensToVibrations) this.vibrationListeners.add(be);
     this.changed.add(be.pos.key);
     this.updateBlockEntityTicker(be);
   }
@@ -667,6 +688,7 @@ export class World {
     if (be) {
       this.blockEntities.delete(pos.key);
       be.removed = true;
+      this.vibrationListeners.delete(be);
       this.changed.add(pos.key);
     }
     this.removeBlockEntityTicker(pos.key);
@@ -728,6 +750,8 @@ export class World {
     this.setBlock(pos, state, F.NEIGHBORS | F.CLIENTS | F.IMMEDIATE);
     const now = this.getBlockState(pos);
     if (now.id === state.id) now.block.setPlacedBy(this, pos, now);
+    // BlockItem.place
+    this.gameEvent('block_place', pos, this.getBlockState(pos));
     return this.getBlockState(pos);
   }
 

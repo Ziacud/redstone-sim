@@ -39,6 +39,7 @@ defineBlock({
   playNote(world, pos, state) {
     if (worksAboveNoteBlock(state.props.instrument) || world.getBlockState(pos.above()).block.isAir) {
       world.blockEvent(pos, this, 0, 0);
+      world.gameEvent('note_block_play', pos);
     }
   },
   /** useWithoutItem: tune one step up, then play. */
@@ -105,12 +106,14 @@ function door(id, color, byHand) {
       const other = pos.rel(state.props.half === 'lower' ? UP : DOWN);
       const signal = world.hasNeighborSignal(pos) || world.hasNeighborSignal(other);
       if (sourceBlock !== this && signal !== state.props.powered) {
+        if (signal !== state.props.open) world.gameEvent(signal ? 'block_open' : 'block_close', pos);
         world.setBlock(pos, withProp(withProp(state, 'powered', signal), 'open', signal), F.CLIENTS);
       }
     },
     use(world, pos, state) {
       if (!byHand) return false;
       world.setBlock(pos, withProp(state, 'open', !state.props.open), F.CLIENTS | F.IMMEDIATE);
+      world.gameEvent(state.props.open ? 'block_close' : 'block_open', pos);
       return true;
     },
   });
