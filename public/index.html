@@ -129,8 +129,28 @@
     body:not(.collapsed) #bar { display: none; }
   }
 </style>
-<script type="importmap">
-  { "imports": { "three": "/three.module.js" } }
+<script>
+  // Served by `node server/index.js`: talk to it. Opened as static files (GitHub Pages, any
+  // sub-path, or a URL with ?local): run the simulator in this tab, with three.js from a CDN and small browser
+  // stand-ins for node:fs / node:path (designs are kept in localStorage).
+  (() => {
+    // the Node server serves the viewer at "/"; anywhere else (a sub-path) is static hosting
+    const local = !/^\/(index\.html)?$/.test(location.pathname) || new URLSearchParams(location.search).has('local');
+    const cdn = 'https://cdn.jsdelivr.net/npm/three@0.186.1/';
+    const imports = local
+      ? {
+          three: cdn + 'build/three.module.js',
+          'three/addons/controls/OrbitControls.js': cdn + 'examples/jsm/controls/OrbitControls.js',
+          'node:fs': './local/fs.js',
+          'node:path': './local/path.js',
+        }
+      : { three: './three.module.js', 'three/addons/controls/OrbitControls.js': './OrbitControls.js' };
+    const map = document.createElement('script');
+    map.type = 'importmap';
+    map.textContent = JSON.stringify({ imports });
+    document.currentScript.after(map);
+    window.REDSTONE_LOCAL = local;
+  })();
 </script>
 </head>
 <body>
@@ -154,7 +174,7 @@
       </div>
       <label class="check"><input type="checkbox" id="keep" checked> <span data-i18n="designs.keep"></span></label>
       <div class="hint" data-i18n-html="designs.hint"></div>
-      <input type="file" id="file" accept=".json,.mcfunction,.txt" hidden>
+      <input type="file" id="file" accept=".json,.mcfunction,.txt,.litematic" hidden>
     </section>
 
     <section>
@@ -166,6 +186,9 @@
       <div class="row">
         <a class="btn grow" id="dljson" href="/api/world.json" download data-i18n="world.dlJson">⬇ .json</a>
         <a class="btn grow" id="dlmcf" href="/api/world.mcfunction" download data-i18n="world.dlMcf">⬇ .mcfunction</a>
+      </div>
+      <div class="row">
+        <a class="btn grow" id="dllit" href="/api/world.litematic" download data-i18n="world.dlLit">⬇ .litematic</a>
       </div>
       <div class="row">
         <button id="mats" class="grow" data-i18n="mats.button">📦 Material list</button>
@@ -249,6 +272,6 @@
 <div id="drop" data-i18n="drop"></div>
 <div id="busy" data-i18n="busy">Loading…</div>
 
-<script type="module" src="/viewer.js"></script>
+<script type="module" src="./viewer.js"></script>
 </body>
 </html>

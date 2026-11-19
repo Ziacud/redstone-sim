@@ -6,6 +6,8 @@ import './blocks/components.js';
 import './blocks/piston.js';
 import './blocks/farm.js';
 import './blocks/trapdoor.js';
+import './blocks/noteblock.js';
+import './blocks/containers.js';
 
 export { World, F, PRIORITY, MIN_Y, MAX_Y } from './world.js';
 export { Pos, pos, dirByName, ALL, HORIZONTAL } from './dir.js';

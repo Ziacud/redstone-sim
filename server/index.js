@@ -5,6 +5,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -17,7 +18,11 @@ const log = (...a) => console.error('[redstone-sim]', ...a);
 const viewerOnly = process.argv.includes('--viewer-only');
 const BASE_PORT = Number(process.env.REDSTONE_SIM_PORT || 3700);
 
-const sim = new Simulation({ designsDir: path.join(ROOT, 'designs') });
+const sim = new Simulation({
+  designsDir: path.join(ROOT, 'designs'),
+  gzip: (bytes) => zlib.gzipSync(bytes),
+  gunzip: (bytes) => zlib.gunzipSync(bytes),
+});
 let viewerUrl = null;
 
 const loadArg = process.argv.indexOf('--load');
@@ -58,53 +63,15 @@ function readBody(req) {
   });
 }
 const sendJson = (res, code, data) => res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' }).end(JSON.stringify(data));
-const sendFile = (res, name, type, text) =>
-  res.writeHead(200, { 'content-type': type, 'content-disposition': `attachment; filename="${encodeURIComponent(name)}"` }).end(text);
+const sendFile = (res, name, type, data) =>
+  res.writeHead(200, { 'content-type': type, 'content-disposition': `attachment; filename="${encodeURIComponent(name)}"` }).end(data);
 
 async function api(req, res, url) {
-  const route = `${req.method} ${url.pathname}`;
   const body = req.method === 'POST' ? JSON.parse((await readBody(req)) || '{}') : {};
-  switch (route) {
-    case 'GET /api/designs':
-      return sendJson(res, 200, sim.listDesignFiles());
-    case 'POST /api/designs/load':
-      sim.load(body.name);
-      return sendJson(res, 200, { ok: true });
-    case 'POST /api/designs/save':
-      sim.save(body.name);
-      return sendJson(res, 200, { ok: true });
-    case 'POST /api/designs/delete':
-      sim.deleteDesign(body.name);
-      return sendJson(res, 200, { ok: true });
-    case 'GET /api/designs/file': {
-      const name = url.searchParams.get('name');
-      return sendFile(res, `${name}.json`, 'application/json', fs.readFileSync(sim.designPath(name)));
-    }
-    case 'GET /api/world.json':
-      return sendFile(res, `${sim.designName ?? 'world'}.json`, 'application/json', JSON.stringify(sim.serialize()));
-    case 'GET /api/world.mcfunction':
-      return sendFile(res, `${sim.designName ?? 'world'}.mcfunction`, 'text/plain; charset=utf-8', sim.exportMcfunction());
-    case 'GET /api/materials':
-      return sendJson(res, 200, sim.materials());
-    case 'POST /api/new':
-      sim.newWorld({ floor: 32 });
-      return sendJson(res, 200, { ok: true });
-    case 'POST /api/import': {
-      const { filename = '', text = '', save = false } = body;
-      const base = filename.replace(/\.[^.]*$/, '').replace(/[^\w\-. ]/g, '_') || 'imported';
-      let info = {};
-      if (/\.mcfunction$/i.test(filename)) info = sim.importMcfunction(text);
-      else {
-        const data = JSON.parse(text);
-        if (data.format !== 'redstone-sim/1') throw new Error('not a redstone-sim design file');
-        sim.deserialize(data);
-      }
-      if (save) sim.save(base);
-      return sendJson(res, 200, { ok: true, name: save ? base : null, ...info });
-    }
-    default:
-      return sendJson(res, 404, { error: 'not found' });
-  }
+  const out = await sim.handleApi(req.method, url.pathname, url.searchParams, body);
+  if (!out) return sendJson(res, 404, { error: 'not found' });
+  if (out.json !== undefined) return sendJson(res, 200, out.json);
+  return sendFile(res, out.file.name, out.file.type, out.file.data);
 }
 
 const httpServer = http.createServer((req, res) => {
@@ -129,20 +96,7 @@ wss.on('connection', (ws) => {
   ws.on('close', unsubscribe);
   ws.on('message', (raw) => {
     try {
-      const m = JSON.parse(raw);
-      if (m.type === 'use') sim.use(m.x, m.y, m.z);
-      else if (m.type === 'pause') sim.setRunning(false);
-      else if (m.type === 'resume') sim.setRunning(true);
-      else if (m.type === 'step') sim.step(Math.max(1, Math.min(10000, m.n | 0 || 1)));
-      else if (m.type === 'rewind') sim.rewind(Math.max(1, Math.min(100000, m.n | 0 || 1)));
-      else if (m.type === 'tps') sim.setTps(m.tps);
-      else if (m.type === 'restart') sim.restart();
-      else if (m.type === 'chunk') sim.toggleChunk(m.cx | 0, m.cz | 0);
-      else if (m.type === 'thaw') sim.thawAll();
-      else if (m.type === 'trap') sim.setTrap(m);
-      else if (m.type === 'untrap') sim.clearTrap();
-      else if (m.type === 'paper') sim.setPaper(m.on);
-      sim.flush();
+      sim.handleMessage(JSON.parse(raw));
     } catch (e) {
       ws.send(JSON.stringify({ type: 'error', message: e.message }));
     }
@@ -272,7 +226,7 @@ function buildMcpServer() {
       'Cells: " . " air, "###" solid (#NN = solid powered at NN), "XXX" obsidian, "ggg" glass, "wNN" dust at power NN, "[R]" redstone block, ' +
       '"t+ "/"t- " torch lit/unlit, "t→+" wall torch pointing east, "Lf+" floor lever on (Lc = ceiling, L→ = wall lever facing east), "b.." button, ' +
       '"r→2" repeater outputting east delay 2 (R = powered, x instead of delay = locked), "c→c"/"c→s" comparator compare/subtract (C = powered), ' +
-      '"O+ "/"o- " lamp, "U*+" copper bulb (* lit / o unlit, + powered), "TTT" soil, "~~~" water, " | " sugar cane, "v→+" observer WATCHING east (outputs west), "p→-" piston facing east (P = sticky, + extended), "h→=" head, "m→~" moving block, "BNN" barrel output. ' +
+      '"O+ "/"o- " lamp, "U*+" copper bulb (* lit / o unlit, + powered), "TTT" soil, "~~~" water, " | " sugar cane, "v→+" observer WATCHING east (outputs west), "p→-" piston facing east (P = sticky, + extended), "h→=" head, "m→~" moving block, "BNN" barrel output, "cNN" chest output, "KNN" shulker box output, "H↓-" hopper pointing south (x = locked), "j→+"/"J→+" dropper/dispenser facing east (+ triggered), "nNN" note block at note NN, "D_c"/"D‾o" door lower closed / upper open. ' +
       'Arrows: ↑ north, ↓ south, → east, ← west, U up, D down. Omit from/to to view everything.',
     { from: triple.optional(), to: triple.optional() },
     ({ from, to }) => {
@@ -297,11 +251,21 @@ function buildMcpServer() {
   tool(
     server,
     'interact',
-    'Act on a block like a player between ticks. action "use" (default): flip lever, press button, cycle repeater delay, toggle comparator mode, toggle dust dot/cross. ' +
-      'action "set_signal": set a barrel\'s comparator output to value (0-15).',
-    { ...xyz, action: z.enum(['use', 'set_signal']).optional(), value: z.number().int().min(0).max(15).optional() },
-    ({ x, y, z: zz, action, value }) =>
-      action === 'set_signal' ? sim.setSignal(x, y, zz, value ?? 0) : sim.use(x, y, zz),
+    'Act on a block like a player between ticks. action "use" (default): flip lever, press button, open/close a wooden door or trapdoor, tune a note block (and play it), cycle repeater delay, toggle comparator mode, toggle dust dot/cross. ' +
+      'action "set_signal": set a barrel\'s comparator output to value (0-15). ' +
+      'action "set_items": replace a container\'s contents with items [{slot, id, count}] (ids without "minecraft:"; stacks are capped at the item\'s stack size).',
+    {
+      ...xyz,
+      action: z.enum(['use', 'set_signal', 'set_items']).optional(),
+      value: z.number().int().min(0).max(15).optional(),
+      items: z.array(z.object({ slot: z.number().int().min(0), id: z.string(), count: z.number().int().min(1).optional() })).max(54).optional(),
+    },
+    ({ x, y, z: zz, action, value, items }) =>
+      action === 'set_signal'
+        ? sim.setSignal(x, y, zz, value ?? 0)
+        : action === 'set_items'
+          ? sim.setItems(x, y, zz, items ?? [])
+          : sim.use(x, y, zz),
   );
 
   tool(
@@ -310,7 +274,7 @@ function buildMcpServer() {
     'Pause real time and run N game ticks deterministically, recording probes after every tick. ' +
       'Waveforms use one char per sample (first sample = before the first tick): "." = 0, 1-9/a-f = power 1-15, "_" = air/not a power holder. ' +
       'Probe values: dust = power, torch/lamp/lever/observer = 0 or 15, repeater/comparator = output, piston = 15 when extended, solid block = how strongly it is powered. ' +
-      'actions run between ticks: at=k runs before tick k+1 (at=0 = before the first tick). Action kinds: use (default), set_signal (value), place (block), break. ' +
+      'actions run between ticks: at=k runs before tick k+1 (at=0 = before the first tick). Action kinds: use (default), set_signal (value), set_items (items), place (block), break. ' +
       'Real time stays paused afterwards if it was paused before.',
     {
       ticks: z.number().int().min(1).max(100000),
@@ -320,9 +284,10 @@ function buildMcpServer() {
           z.object({
             at: z.number().int().min(0),
             ...xyz,
-            action: z.enum(['use', 'set_signal', 'place', 'break']).optional(),
+            action: z.enum(['use', 'set_signal', 'set_items', 'place', 'break']).optional(),
             value: z.number().int().optional(),
             block: z.string().optional(),
+            items: z.array(z.object({ slot: z.number().int().min(0), id: z.string(), count: z.number().int().min(1).optional() })).max(54).optional(),
           }),
         )
         .max(1000)
@@ -432,6 +397,32 @@ function buildMcpServer() {
       fs.mkdirSync(path.dirname(file), { recursive: true });
       fs.writeFileSync(file, body);
       return `wrote ${file} (${body.split('\n').length - 1} commands)`;
+    },
+  );
+
+  tool(
+    server,
+    'export_litematic',
+    'Write the world (or a box from..to) as a Litematica schematic designs/<name>.litematic: blocks, container items, comparator outputs and pending ticks.',
+    { name: z.string(), from: triple.optional(), to: triple.optional() },
+    ({ name, from, to }) => {
+      const file = sim.designPath(name).replace(/\.json$/, '.litematic');
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, zlib.gzipSync(sim.exportLitematic(from, to)));
+      return `wrote ${file}`;
+    },
+  );
+
+  tool(
+    server,
+    'import_litematic',
+    'Replace the world with a Litematica schematic file (path on this computer, or a name in designs/). Its min corner goes to 0,0,0. ' +
+      'Blocks the simulator does not have are skipped and listed.',
+    { file: z.string() },
+    ({ file }) => {
+      const p = fs.existsSync(file) ? file : sim.designPath(file.replace(/\.litematic$/i, '')).replace(/\.json$/, '.litematic');
+      const r = sim.importLitematic(zlib.gunzipSync(fs.readFileSync(p)));
+      return `opened ${p}: ${r.placed} blocks${r.skipped ? `; skipped ${r.skipped} unsupported: ${r.unsupported.join(', ')}` : ''}`;
     },
   );
 

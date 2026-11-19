@@ -3,10 +3,10 @@
 A tick-exact simulator of Minecraft **Java Edition** redstone, with an MCP server (so an AI
 assistant such as Claude can build and test circuits) and a live 3D web viewer.
 
-[Türkçe](README.tr.md)
+[Türkçe](README.tr.md) · **[Try it in your browser](https://ziacud.github.io/redstone-sim/)** (no install; designs stay in your browser)
 
-- Matches the real game, block change by block change, on **all 688** real Minecraft 26.3
-  captures that use only supported blocks (another 1551 captures need blocks or features it does
+- Matches the real game, block change by block change, on **all 928** real Minecraft 26.3
+  captures that use only supported blocks (another 1311 captures need blocks or features it does
   not have yet; see [Accuracy](#accuracy)).
 - Pistons, sticky pistons, slime and honey, observers, quasi-connectivity and BUDs, 0-ticks,
   block dropping, update skipping, torch burnout, flying machines.
@@ -15,8 +15,10 @@ assistant such as Claude can build and test circuits) and a live 3D web viewer.
 - Headless and deterministic: run thousands of what-if cases from a script, or watch one in 3D.
 - **Rewind:** step back tick by tick to see exactly how a machine broke.
 - **Material list:** the items, stacks and shulker boxes a build takes.
-- Reads real Java worlds (Anvil region files) and writes `.mcfunction` files you can paste into
-  the game.
+- Hoppers, chests, droppers, dispensers, barrels and shulker boxes with their items; note blocks
+  and doors.
+- Opens and saves **Litematica** schematics (`.litematic`), reads real Java worlds (Anvil region
+  files) and writes `.mcfunction` files you can paste into the game.
 
 ## How it works
 
@@ -38,13 +40,29 @@ Redstone dust, redstone torch (floor and wall, burnout), lever, stone and oak bu
 (delay, locking), comparator (compare / subtract, container reading), redstone lamp, observer,
 piston and sticky piston (12-block push limit, quasi-connectivity, block dropping, slime and
 honey), redstone block, copper bulbs (every oxidation stage, waxed or not), wooden and iron
-trapdoors, glass, slabs, obsidian, concrete, wool, stone variants, and the farm blocks dirt,
-grass, sand, farmland, water (a static source: flow is not simulated), sugar cane, melon,
-pumpkin and their stems.
+trapdoors and doors, note blocks (instrument from the block below or a head above), hoppers
+(cooldown, locking), chests and double chests (a conductor above blocks the comparator
+reading), droppers, dispensers, barrels and shulker boxes, glass, slabs, obsidian, concrete,
+wool, quartz, metal blocks, planks, logs, stone variants, and the farm blocks dirt, grass, sand,
+farmland, water (a static source: flow is not simulated), sugar cane, melon, pumpkin and their
+stems.
+
+Containers hold items (stack sizes as in game; comparators read them with the game's float
+math). Item entities are not simulated: a dispenser or dropper with nothing to put its item
+into just uses it up, and only the plain "drop the item" behaviour exists (no special dispenser
+items such as buckets, arrows or shulker boxes).
 
 Not simulated (yet): entities, fluid flow, light, the redstone experiments, and blocks such as
-hoppers, chests, note blocks, dispensers and droppers, composters, crafters, sculk sensors,
-rails, doors, tripwire hooks, bells, lecterns, TNT and leaves.
+composters, crafters, sculk sensors, rails, tripwire hooks, bells, lecterns, TNT and leaves.
+
+## In the browser
+
+**https://ziacud.github.io/redstone-sim/** runs the whole simulator in the page: the viewer below with the demo design, rewind,
+the material list, opening and downloading `.json`, `.mcfunction` and `.litematic` files.
+Designs you save are kept in your browser's storage. The MCP server needs the local install.
+
+The same page works from any static web server: serve the repository folder and open
+`public/index.html` under a sub-path, or add `?local` to the address.
 
 ## Install
 
@@ -64,9 +82,11 @@ Open http://localhost:3700/. The UI is in English or Turkish (button at the top 
 panel; the default follows your browser language).
 
 - **Designs:** saved worlds in `designs/` (click to load; download; delete). **Open file** or
-  drag and drop a `.json` design or a `.mcfunction`: its `setblock` and `fill` commands run as
-  they do in game.
-- **This world:** save under a name, download as `.json` or `.mcfunction`, start an empty world.
+  drag and drop a `.json` design, a `.mcfunction` (its `setblock` and `fill` commands run as
+  they do in game) or a Litematica `.litematic` (every region, container items and pending
+  ticks; blocks the simulator does not know are left out and listed).
+- **This world:** save under a name, download as `.json`, `.mcfunction` or `.litematic`, start an
+  empty world. Hover a container to see its items.
 - **Server test:** a vanilla-style restart, chunk freezing (`C`, then click a block: that chunk
   gets no ticks and shows blue), and a chunk-border trap (`T`): every time a machine tries to
   cross the border, the far side stops ticking (or a plugin cancels the piston move) for the
@@ -90,13 +110,14 @@ http://localhost:3700/). Other MCP clients: run `node server/index.js` over stdi
 | `set_blocks`, `fill` | Place and break blocks like a player or like `/setblock` |
 | `view_region` | Layer-by-layer text map |
 | `inspect` | One block: state, power, pending ticks, incoming signals |
-| `interact` | Levers, buttons, repeater delay, comparator mode, barrel signal |
+| `interact` | Levers, buttons, doors, note blocks, repeater delay, comparator mode, barrel signal, container items (`set_items`) |
 | `run_ticks` | Run a number of ticks; returns waveforms and edge lists from probes |
 | `sim_control` | Pause, resume, step, set tps, rewind |
 | `chunk_control` | Freeze / thaw chunks, simulate a server restart |
 | `clear_world` | Start over |
 | `save_design`, `load_design`, `list_designs` | Save to and load from `designs/` |
 | `export_mcfunction` | `/setblock` commands for real Minecraft |
+| `export_litematic`, `import_litematic` | Save the world (or a box of it) as a Litematica schematic in `designs/`, open one |
 | `material_list` | Items, stacks and shulker boxes a build (or a box of it) takes |
 
 ## Server conditions: restarts and unloaded chunks
@@ -135,12 +156,16 @@ compared at three levels:
 - `order`: every block change, neighbour and shape update, scheduled tick and block event, in
   the game's order
 
-**All 688 captures built from supported blocks match at all three levels** (the runner prints
-`ran 688 traces, skipped 1551 (unsupported)`). They include location-dependent dust, QC/BUD,
-0-ticks, block dropping, update skipping, torch burnout, flying machines and piston doors. The
-skipped captures use something the simulator does not have yet: mostly entities (796), the
-redstone experiments (112) and water flow (80), the rest blocks such as hoppers, chests, note
-blocks, droppers, dispensers and rails.
+**All 928 captures built from supported blocks match at all three levels** (the runner prints
+`ran 928 traces, skipped 1311 (unsupported)`). They include location-dependent dust, QC/BUD,
+0-ticks, block dropping, update skipping, torch burnout, flying machines, piston doors, hopper
+chains, comparators reading containers, note blocks and doors. The skipped captures use
+something the simulator does not have yet: mostly entities (796), the redstone experiments
+(112) and water flow (80), the rest blocks such as sculk sensors, crafters, composters and rails,
+or special dispenser items.
+
+The captures also record container contents; `--items` compares them too (all match except
+one dispenser capture whose random slot depends on the game's random seed).
 
 Two behaviours have no capture: dust and repeaters/comparators popping on the shape update
 that removes their support. They were implemented from Pumpkin's 26.3 port and vanilla
@@ -151,7 +176,7 @@ node scripts/fetch-tickwright.js      # downloads the captures into vendor/tickw
 node conformance/run.js --verbose     # summary and first differences
 ```
 
-The fetch script is pinned to the tickwright commit the 688/688 result was measured on.
+The fetch script is pinned to the tickwright commit the 928/928 result was measured on.
 
 ## Tests
 
@@ -160,8 +185,8 @@ npm test
 ```
 
 Unit tests check known timings (repeater delays, lamp 4 gt, torch burnout, observers, piston
-timing, QC/BUD, sticky piston block dropping, the 12-block limit), the MCP server end to end,
-and every conformance capture (skipped until the captures are downloaded).
+timing, QC/BUD, sticky piston block dropping, the 12-block limit, hoppers, chests, droppers,
+note blocks, doors, rewind), the MCP server end to end, and every conformance capture (skipped until the captures are downloaded).
 
 ## Credits
 

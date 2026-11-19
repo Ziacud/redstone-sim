@@ -629,6 +629,7 @@ export class World {
     const s = this.getBlockState(be.pos);
     if (!s.block.hasBlockEntity(s)) return;
     be.removed = false;
+    if ('world' in be) be.world = this;
     const old = this.blockEntities.get(be.pos.key);
     this.blockEntities.set(be.pos.key, be);
     if (old && old !== be) old.removed = true;

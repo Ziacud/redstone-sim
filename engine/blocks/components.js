@@ -1,5 +1,5 @@
 // Ports of RedstoneTorchBlock, RedstoneWallTorchBlock, LeverBlock, ButtonBlock, the redstone
-// block, RedstoneLampBlock, DiodeBlock (repeater + comparator), ObserverBlock and a container.
+// block, RedstoneLampBlock, DiodeBlock (repeater + comparator) and ObserverBlock.
 
 import { defineBlock, COMPONENT, BaseBlock } from './base.js';
 import { makeState, withProp } from '../state.js';
@@ -513,44 +513,4 @@ const observer = defineBlock({
   },
 });
 
-// ------------------------------------------------------------------ container
-
-class ContainerBlockEntity {
-  constructor(pos, state) {
-    this.type = 'container';
-    this.pos = pos;
-    this.state = state;
-    this.signal = 0;
-    this.removed = false;
-  }
-  isValid(state) { return state.id === 'barrel'; }
-  save() { return { signal: this.signal }; }
-  load(data) { this.signal = data.signal ?? 0; }
-}
-
-/** Stand-in for any container: its comparator output (0-15) is set directly instead of via items. */
-defineBlock({
-  id: 'barrel',
-  glyph: 'B',
-  color: 0x7a5530,
-  properties: { facing: DIRS6, open: [false, true] },
-  defaults: { facing: 'up' },
-  hasBlockEntity() { return true; },
-  newBlockEntity(pos, state) { return new ContainerBlockEntity(pos, state); },
-  hasAnalogOutput() { return true; },
-  getAnalogOutput(world, pos) {
-    const be = world.getBlockEntity(pos);
-    return be instanceof ContainerBlockEntity ? be.signal : 0;
-  },
-  reportPower(world, pos, state) { return this.getAnalogOutput(world, pos, state); },
-  setSignal(world, pos, signal) {
-    const be = world.getBlockEntity(pos);
-    if (!(be instanceof ContainerBlockEntity)) return false;
-    be.signal = Math.max(0, Math.min(15, signal | 0));
-    world.changed.add(pos.key);
-    world.updateNeighbourForOutputSignal(pos, this);
-    return true;
-  },
-});
-
-export { ComparatorBlockEntity, ContainerBlockEntity, observer, HORIZONTAL };
+export { ComparatorBlockEntity, observer, HORIZONTAL };

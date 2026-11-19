@@ -12,11 +12,17 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { World, pos, getBlock, hasBlock, makeState, parseBlockString } from '../engine/index.js';
+import { ItemStack } from '../engine/items.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const VENDOR = path.join(ROOT, 'vendor', 'tickwright');
 const MARGIN = 3;
 const COMPARED_KINDS = new Set(['set', 'neighbor', 'shape', 'schedule', 'tick', 'block_event_queued', 'block_event']);
+// The captures also log every container change ('items'); tickwright does not compare them, but
+// --items does (a stricter check of the item logic).
+if (process.argv.includes('--items')) COMPARED_KINDS.add('items');
+// Items a dispenser handles with a special behaviour (placing fluids, ...) that is not simulated.
+const SPECIAL_DISPENSE = /bucket|powder_snow|bone_meal|shulker_box|tnt|fire_charge|flint_and_steel|shears|arrow|egg|snowball|potion|bottle|firework|minecart|boat|_head|skull|carved_pumpkin|armor|helmet|chestplate|leggings|boots|saddle|honeycomb|brush|wind_charge|spawn_egg/;
 
 // ------------------------------------------------------------------ helpers
 
@@ -71,18 +77,12 @@ function tState(str, tr) {
     const [k, v] = p.split('=');
     if (['north', 'east', 'south', 'west'].includes(k)) return `${tDir(k, tr)}=${v}`;
     if (k === 'facing') return `${k}=${tDir(v, tr)}`;
+    // Block.mirror: doors swap their hinge, chests their half
+    if (tr.mirror && k === 'hinge') return `${k}=${v === 'left' ? 'right' : 'left'}`;
+    if (tr.mirror && k === 'type' && (v === 'left' || v === 'right')) return `${k}=${v === 'left' ? 'right' : 'left'}`;
     return p;
   });
   return `${m[1]}[${props.join(',')}]`;
-}
-
-/** Comparator output of a container from its items (AbstractContainerMenu.getRedstoneSignalFromContainer). */
-function containerSignal(items, slots) {
-  if (!items.length) return 0;
-  let f = 0;
-  for (const it of items) f += it.count / 64; // assumes 64-stackable items
-  f /= slots;
-  return Math.floor(f * 14) + 1;
 }
 
 let fixtureIndex = null;
@@ -149,12 +149,11 @@ export function runTrace(trace) {
   for (const c of fx.containers ?? []) {
     const p = at(tPos(c.pos, size0, tr));
     const be = w.getBlockEntity(p);
-    if (!be || be.type !== 'container') throw new Unsupported('container type');
-    // Container.setItem -> setChanged -> updateNeighbourForOutputSignal, once per item
-    for (let i = 1; i <= c.items.length; i++) {
-      be.signal = containerSignal(c.items.slice(0, i), 27);
-      w.updateNeighbourForOutputSignal(p, w.getBlockState(p).block);
-    }
+    if (!be || typeof be.setItem !== 'function') throw new Unsupported('container type');
+    if (be.type === 'dispenser' && c.items.some((it) => SPECIAL_DISPENSE.test(it.id))) throw new Unsupported('dispenser item behaviour');
+    if (c.items.some((it) => it.components)) throw new Unsupported('item components');
+    // Container.setItem, once per item (wakes comparators where setItem calls setChanged)
+    for (const it of c.items) be.setItem(it.slot, ItemStack.of(it.id, it.count));
   }
   if (fx.lecterns?.length) throw new Unsupported('lectern');
   w.flushChanged();
@@ -195,7 +194,7 @@ export function runTrace(trace) {
   const rel = (e) => [e.pos[0] - origin[0], e.pos[1] - origin[1], e.pos[2] - origin[2]];
   const actual = w.rec.entries
     .map((e) => ({ ...e, pos: rel(e) }))
-    .filter((e) => inBox(e.pos))
+    .filter((e) => COMPARED_KINDS.has(e.kind) && inBox(e.pos))
     .map((e) => ({ ...e, state: e.state === undefined ? undefined : canonical(e.state) }));
   return { actual, states, origin, inBox };
 }

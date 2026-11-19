@@ -33,8 +33,40 @@ const SOLIDS = [
   ['pink_concrete', 0xd5658f],
   ['brown_concrete', 0x603c20],
   ['white_wool', 0xeaeded],
+  ['orange_wool', 0xf07613],
+  ['magenta_wool', 0xbd44b3],
+  ['light_blue_wool', 0x3aafd9],
+  ['yellow_wool', 0xf8c627],
+  ['lime_wool', 0x70b919],
+  ['pink_wool', 0xed8dac],
+  ['gray_wool', 0x3e4447],
+  ['light_gray_wool', 0x8e8e86],
+  ['cyan_wool', 0x158991],
+  ['purple_wool', 0x792aac],
+  ['blue_wool', 0x35399d],
+  ['brown_wool', 0x724728],
+  ['green_wool', 0x546d1b],
+  ['red_wool', 0xa12722],
+  ['black_wool', 0x141519],
+  ['quartz_block', 0xece6df],
+  ['chiseled_quartz_block', 0xe7e2d9],
+  ['smooth_quartz', 0xebe5de],
+  ['quartz_bricks', 0xeae5dd],
+  ['iron_block', 0xdcdcdc],
+  ['gold_block', 0xf6d03d],
+  ['emerald_block', 0x2acb57],
+  ['diamond_block', 0x62ede4],
+  ['oak_planks', 0xa2834f],
+  ['spruce_planks', 0x725430],
+  ['birch_planks', 0xc0af79],
+  ['dark_oak_planks', 0x422b14],
 ];
 for (const [id, color] of SOLIDS) defineBlock({ id, color, glyph: '#' });
+
+// Logs and wood: full blocks along an axis.
+for (const [id, color] of [['oak_log', 0x6d5432], ['oak_wood', 0x6d5432], ['spruce_log', 0x3b2611], ['birch_log', 0xd8d7d2], ['dark_oak_log', 0x3c2e1a]]) {
+  defineBlock({ id, color, glyph: '#', properties: { axis: ['y', 'x', 'z'] } });
+}
 
 // Target block: conductive, and emits its stored power (set by projectile hits, not simulated).
 defineBlock({

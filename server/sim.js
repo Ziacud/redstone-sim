@@ -16,6 +16,10 @@ import {
   MAX_Y,
 } from '../engine/index.js';
 import { cloneWorld, cloneDeep } from '../engine/clone.js';
+import { allBlocks } from '../engine/state.js';
+import { ItemStack, EMPTY, maxStackSize } from '../engine/items.js';
+import { ContainerBlockEntity } from '../engine/blocks/containers.js';
+import { readNbt, writeNbt, litematicToWorld, worldToLitematic } from '../engine/litematic.js';
 
 const ARROW = { north: '↑', south: '↓', east: '→', west: '←', up: 'U', down: 'D' };
 
@@ -41,11 +45,16 @@ const ITEM_FOR = {
   pumpkin_stem: 'pumpkin_seeds',
   attached_pumpkin_stem: 'pumpkin_seeds',
 };
-const STACK = { water_bucket: 1 };
 
 export class Simulation {
-  constructor({ designsDir }) {
+  /**
+   * designsDir: where designs are saved. gzip / gunzip: (Uint8Array) => Uint8Array or a Promise
+   * of one, for .litematic files (Node's zlib on the server, CompressionStream in the browser).
+   */
+  constructor({ designsDir, gzip = null, gunzip = null }) {
     this.designsDir = designsDir;
+    this.gzip = gzip;
+    this.gunzip = gunzip;
     this.listeners = new Set();
     this.tps = 20;
     this.running = true;
@@ -213,6 +222,7 @@ export class Simulation {
       let id = state.id;
       let item = id in ITEM_FOR ? ITEM_FOR[id] : id;
       if (item && /_slab$/.test(id) && state.props.type === 'double') n *= 2;
+      if (item && state.block.isDoor && state.props.half === 'upper') return; // one item per door
       if (item) counts.set(item, (counts.get(item) ?? 0) + n);
     };
     for (const [key, s] of w.blocks) {
@@ -225,7 +235,7 @@ export class Simulation {
     }
     return [...counts]
       .map(([item, count]) => {
-        const stack = STACK[item] ?? 64;
+        const stack = maxStackSize(item);
         return { item, count, stackSize: stack, stacks: Math.floor(count / stack), rest: count % stack, shulkers: +(count / stack / 27).toFixed(2) };
       })
       .sort((a, b) => b.count - a.count || a.item.localeCompare(b.item));
@@ -347,7 +357,9 @@ export class Simulation {
       });
     } else {
       const power = this.world.powerLevel(p);
-      out.push(power === null ? {} : { power });
+      const extra = power === null ? {} : { power };
+      if (be instanceof ContainerBlockEntity) extra.items = be.save().items;
+      out.push(extra);
     }
     return out;
   }
@@ -359,7 +371,9 @@ export class Simulation {
       blocks.push(this.encodeBlock(pos(x, y, z)));
     }
     this.world.changed.clear();
-    return { ...this.status(), blocks };
+    const colors = {};
+    for (const b of allBlocks()) if (b.color !== undefined) colors[b.id] = b.color;
+    return { ...this.status(), blocks, colors };
   }
 
   /** Sends changed blocks (plus their neighbors, whose displayed power may have changed). */
@@ -414,6 +428,27 @@ export class Simulation {
     return { ok, state: this.world.getBlockState(p).key };
   }
 
+  /** Replaces a container's items ([{slot, id, count}]) and wakes comparators like a player would. */
+  setItems(x, y, z, items) {
+    const p = pos(x, y, z);
+    const be = this.world.getBlockEntity(p);
+    if (!(be instanceof ContainerBlockEntity)) throw new Error(`no container at ${p}`);
+    const n = be.getContainerSize();
+    for (const it of items) {
+      if (!Number.isInteger(it.slot) || it.slot < 0 || it.slot >= n) throw new Error(`slot ${it.slot} out of range 0..${n - 1}`);
+      if (!/^[a-z0-9_]+$/.test(it.id ?? '')) throw new Error(`bad item id "${it.id}"`);
+    }
+    this.markEdited();
+    be.items.fill(EMPTY);
+    for (const it of items) {
+      const st = ItemStack.of(it.id, Math.max(1, it.count ?? 1));
+      st.limitSize(be.getMaxStackSizeFor(st));
+      be.items[it.slot] = st;
+    }
+    be.setChanged();
+    return { ok: true, items: be.save().items, signal: this.world.powerLevel(p) };
+  }
+
   setSignal(x, y, z, value) {
     const p = pos(x, y, z);
     const s = this.world.getBlockState(p);
@@ -441,6 +476,7 @@ export class Simulation {
       for (const a of actions.filter((a) => (a.at ?? 0) === t)) {
         try {
           if (a.action === 'set_signal') this.setSignal(a.x, a.y, a.z, a.value);
+          else if (a.action === 'set_items') this.setItems(a.x, a.y, a.z, a.items ?? []);
           else if (a.action === 'place') this.setBlock(a.x, a.y, a.z, a.block, a.mode);
           else if (a.action === 'break') this.setBlock(a.x, a.y, a.z, 'air');
           else this.use(a.x, a.y, a.z);
@@ -497,6 +533,11 @@ export class Simulation {
       case 'piston_head': return `h${a(pr.facing)}=`;
       case 'moving_piston': return `m${a(pr.facing)}~`;
       case 'barrel': return `B${String(this.world.powerLevel(p)).padStart(2, '0')}`;
+      case 'chest': return `c${String(this.world.powerLevel(p)).padStart(2, '0')}`;
+      case 'hopper': return `H${a(pr.facing)}${pr.enabled ? '-' : 'x'}`;
+      case 'dropper': return `j${a(pr.facing)}${on(pr.triggered)}`;
+      case 'dispenser': return `J${a(pr.facing)}${on(pr.triggered)}`;
+      case 'note_block': return `n${String(pr.note).padStart(2, '0')}`;
       case 'slime_block': return 'SSS';
       case 'honey_block': return 'HHH';
       case 'glass':
@@ -512,6 +553,8 @@ export class Simulation {
       default: {
         if (s.block.isCopperBulb) return `U${pr.lit ? '*' : 'o'}${pr.powered ? '+' : '-'}`;
         if (s.id.endsWith('_trapdoor')) return `T${pr.half === 'top' ? '‾' : '_'}${pr.open ? 'o' : 'c'}`;
+        if (s.block.isDoor) return `D${pr.half === 'upper' ? '‾' : '_'}${pr.open ? 'o' : 'c'}`;
+        if (s.id.endsWith('shulker_box')) return `K${String(this.world.powerLevel(p)).padStart(2, '0')}`;
         const power = s.block.isConductor(s, this.world, p) ? this.world.getDirectSignalTo(p) : 0;
         return power > 0 ? `#${String(power).padStart(2, '0')}` : '###';
       }
@@ -658,6 +701,100 @@ export class Simulation {
     return { placed, skipped };
   }
 
+  /** Opens a Litematica schematic (uncompressed NBT bytes): every region, container items, ticks. */
+  importLitematic(bytes) {
+    const { world, placed, skipped } = litematicToWorld(readNbt(bytes));
+    this.world = world;
+    this.designName = null;
+    this._resetHistory();
+    this.broadcast({ type: 'snapshot', ...this.snapshot() });
+    const unsupported = [...skipped].sort((a, b) => b[1] - a[1]).map(([id, n]) => `${id} ×${n}`);
+    return { placed, skipped: [...skipped.values()].reduce((a, b) => a + b, 0), unsupported };
+  }
+
+  /** The world as a one-region Litematica schematic (uncompressed NBT bytes). */
+  exportLitematic(from, to) {
+    return writeNbt(worldToLitematic(this.world, { name: this.designName ?? 'redstone-sim', from, to }));
+  }
+
+  // ---------------------------------------------------------------- viewer protocol
+
+  /** One viewer message (the WebSocket protocol), then a flush. */
+  handleMessage(m) {
+    if (m.type === 'use') this.use(m.x, m.y, m.z);
+    else if (m.type === 'pause') this.setRunning(false);
+    else if (m.type === 'resume') this.setRunning(true);
+    else if (m.type === 'step') this.step(Math.max(1, Math.min(10000, m.n | 0 || 1)));
+    else if (m.type === 'rewind') this.rewind(Math.max(1, Math.min(100000, m.n | 0 || 1)));
+    else if (m.type === 'tps') this.setTps(m.tps);
+    else if (m.type === 'restart') this.restart();
+    else if (m.type === 'chunk') this.toggleChunk(m.cx | 0, m.cz | 0);
+    else if (m.type === 'thaw') this.thawAll();
+    else if (m.type === 'trap') this.setTrap(m);
+    else if (m.type === 'untrap') this.clearTrap();
+    else if (m.type === 'paper') this.setPaper(m.on);
+    this.flush();
+  }
+
+  /**
+   * The viewer's HTTP API ("GET /api/..." routes). Returns { json } or { file: { name, type, data } };
+   * throws on errors (status 400) and returns null for unknown routes.
+   */
+  async handleApi(method, pathname, params, body) {
+    const route = `${method} ${pathname}`;
+    const file = (name, type, data) => ({ file: { name, type, data } });
+    const base = this.designName ?? 'world';
+    switch (route) {
+      case 'GET /api/designs':
+        return { json: this.listDesignFiles() };
+      case 'POST /api/designs/load':
+        this.load(body.name);
+        return { json: { ok: true } };
+      case 'POST /api/designs/save':
+        this.save(body.name);
+        return { json: { ok: true } };
+      case 'POST /api/designs/delete':
+        this.deleteDesign(body.name);
+        return { json: { ok: true } };
+      case 'GET /api/designs/file': {
+        const name = params.get('name');
+        return file(`${name}.json`, 'application/json', fs.readFileSync(this.designPath(name), 'utf8'));
+      }
+      case 'GET /api/world.json':
+        return file(`${base}.json`, 'application/json', JSON.stringify(this.serialize()));
+      case 'GET /api/world.mcfunction':
+        return file(`${base}.mcfunction`, 'text/plain; charset=utf-8', this.exportMcfunction());
+      case 'GET /api/world.litematic': {
+        if (!this.gzip) throw new Error('no gzip available');
+        return file(`${base}.litematic`, 'application/octet-stream', await this.gzip(this.exportLitematic()));
+      }
+      case 'GET /api/materials':
+        return { json: this.materials() };
+      case 'POST /api/new':
+        this.newWorld({ floor: 32 });
+        return { json: { ok: true } };
+      case 'POST /api/import': {
+        const { filename = '', text = '', data = null, save = false } = body;
+        const name = filename.replace(/\.[^.]*$/, '').replace(/[^\w\-. ]/g, '_') || 'imported';
+        let info = {};
+        if (/\.litematic$/i.test(filename)) {
+          if (!this.gunzip) throw new Error('no gunzip available');
+          const raw = typeof data === 'string' ? Uint8Array.from(atob(data), (c) => c.charCodeAt(0)) : data;
+          info = this.importLitematic(await this.gunzip(raw));
+        } else if (/\.mcfunction$/i.test(filename)) info = this.importMcfunction(text);
+        else {
+          const json = JSON.parse(text);
+          if (json.format !== 'redstone-sim/1') throw new Error('not a redstone-sim design file');
+          this.deserialize(json);
+        }
+        if (save) this.save(name);
+        return { json: { ok: true, name: save ? name : null, ...info } };
+      }
+      default:
+        return null;
+    }
+  }
+
   designPath(name) {
     if (!/^[\w\-. ]+$/.test(name)) throw new Error('Design names may only contain letters, digits, space, _ - .');
     return path.join(this.designsDir, `${name}.json`);
@@ -732,7 +869,8 @@ export class Simulation {
 
 export function blockCatalog() {
   return [
-    'Building blocks (conductive unless noted): stone, smooth_stone, cobblestone, *_concrete (white, gray, black, red, orange, yellow, lime, green, cyan, light_blue, blue, purple, magenta, pink, brown), white_wool,',
+    'Building blocks (conductive unless noted): stone, smooth_stone, cobblestone, *_concrete (white, gray, black, red, orange, yellow, lime, green, cyan, light_blue, blue, purple, magenta, pink, brown), *_wool (16 colours),',
+    '  quartz_block, chiseled_quartz_block, smooth_quartz, quartz_bricks, iron/gold/emerald/diamond_block, oak/spruce/birch/dark_oak_planks, oak/spruce/birch/dark_oak_log, oak_wood [axis],',
     '  target[power=0..15] (conductive; emits its stored power), obsidian (immovable), bedrock (immovable), glass / white_stained_glass (NOT conductive),',
     '  smooth_stone_slab / stone_slab [type=bottom|top|double] (not conductive),',
     '  slime_block (sticky, conductive), honey_block (sticky, not conductive; does not stick to slime).',
@@ -747,7 +885,12 @@ export function blockCatalog() {
     'redstone_lamp                 on instantly, off after 4 gt',
     'observer[facing=D]            facing = the side it WATCHES; it outputs from the opposite face. Alias: out=D',
     'piston[facing=D] / sticky_piston[facing=D]      facing = push direction; quasi-connectivity, 12 block limit',
-    'barrel                        stands in for any container: set its comparator output with interact action=set_signal',
+    'chest[facing,type=single|left|right], barrel, hopper[facing=down|north|..,enabled], dropper / dispenser[facing,triggered], shulker_box (+ 16 colours)',
+    '                              real containers: put items in with interact action=set_items; hoppers and droppers move them like vanilla',
+    '                              (cooldowns, slot order, double chests); comparators read them. Item entities are not simulated: a dropper or',
+    '                              dispenser facing a non-container removes the item. A barrel output can also be forced with action=set_signal.',
+    'note_block[instrument,note=0..24]  plays on a rising edge (block event); use = tune; instrument comes from the block below',
+    '<wood>_door / iron_door[facing,half=lower|upper,hinge,open,powered]  two blocks; place the lower half, the upper follows; use = toggle (not iron)',
     'copper_bulb (+ exposed_/weathered_/oxidized_, waxed_*)[lit,powered]  toggles lit on each rising edge, no delay; not conductive; comparator reads 15 when lit; observers see both edges',
     '<wood>_trapdoor / iron_trapdoor[facing,half=bottom|top,open,powered]  opens while powered, no delay; use = toggle (not iron); view: "T_c" bottom closed, "T‾o" top open',
     'dirt, grass_block, sand (soil), water[level=0] (static source: flow NOT simulated), sugar_cane (needs soil with water beside it, pops 1 gt after losing support, breaks when pushed)',

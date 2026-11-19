@@ -3,8 +3,11 @@
 // matrix), which are drawn as instances (see "world state").
 
 import * as THREE from 'three';
-import { OrbitControls } from '/OrbitControls.js';
-import { t, locale, lang, setLang, applyStatic, onLangChange } from '/i18n.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { t, locale, lang, setLang, applyStatic, onLangChange } from './i18n.js';
+
+// No server (static hosting): the simulator runs in this tab, see local/backend.js.
+const LOCAL = window.REDSTONE_LOCAL ? await (await import('./local/backend.js')).start() : null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -115,6 +118,10 @@ const SOLID_COLORS = {
   brown_concrete: 0x603c20, white_wool: 0xeaeded, target: 0xe6c9b4, obsidian: 0x1b1428, bedrock: 0x555555,
   dirt: 0x86603e, grass_block: 0x6a9a3c, sand: 0xdbcf96,
 };
+// engine colours of every block (sent with each snapshot): blocks without a model of their own
+let BLOCK_COLORS = {};
+const CW = { north: 'east', east: 'south', south: 'west', west: 'north' };
+const CCW = { north: 'west', west: 'south', south: 'east', east: 'north' };
 const BULB_COLORS = { copper: 0xc7714a, exposed: 0xa97f5c, weathered: 0x6c9e72, oxidized: 0x4fa58f };
 
 const dustColor = (p) => lerpColor(0x4a0303, 0xff2412, p / 15);
@@ -247,6 +254,20 @@ function buildModel(id, p, extra) {
     if (p.powered) box(g, 0.16, 0.02, 0.16, 0.5, 1.0, 0.5, torchHead(true));
     return g;
   }
+  if (id.endsWith('_door')) {
+    // the panel hugs the side opposite its facing; an open door turns towards its hinge
+    const m = mat(id === 'iron_door' ? 0xcfcfcf : 0x9c7a4a, { edges: true });
+    const t = 3 / 16;
+    const d = p.open ? (p.hinge === 'right' ? CCW[p.facing] : CW[p.facing]) : p.facing;
+    const [dx, , dz] = DIRV[OPP[d]];
+    box(g, dx ? t : 1, 1, dz ? t : 1, 0.5 + dx * (0.5 - t / 2), 0.5, 0.5 + dz * (0.5 - t / 2), m);
+    return g;
+  }
+  if (id.endsWith('shulker_box')) {
+    box(g, 1, 1, 1, 0.5, 0.5, 0.5, mat(BLOCK_COLORS[id] ?? 0x8b5f8b, { edges: true }));
+    box(g, 1.01, 0.08, 1.01, 0.5, 0.5, 0.5, mat(0x2a2a2a));
+    return g;
+  }
   if (id.endsWith('_trapdoor')) {
     const m = mat(id === 'iron_trapdoor' ? 0xcfcfcf : 0x9c7a4a, { edges: true });
     const t = 3 / 16;
@@ -304,6 +325,37 @@ function buildModel(id, p, extra) {
     case 'redstone_lamp':
       box(g, 1, 1, 1, 0.5, 0.5, 0.5, p.lit ? mat(0xffd27a, { edges: true, emissive: 0xffa630, emissiveIntensity: 0.85 }) : mat(0x6b4a2a, { edges: true }));
       break;
+    case 'chest':
+      box(g, 0.875, 0.875, 0.875, 0.5, 0.4375, 0.5, mat(0xa06a2c, { edges: true }));
+      {
+        const [fx, , fz] = DIRV[p.facing];
+        box(g, fx ? 0.06 : 0.14, 0.22, fz ? 0.06 : 0.14, 0.5 + fx * 0.46, 0.55, 0.5 + fz * 0.46, mat(0xc8c8c8));
+      }
+      break;
+    case 'hopper': {
+      const m = mat(0x4a4a4e, { edges: true });
+      box(g, 1, 0.375, 1, 0.5, 0.8125, 0.5, m);
+      box(g, 0.5, 0.375, 0.5, 0.5, 0.4375, 0.5, m);
+      if (p.facing === 'down') box(g, 0.25, 0.25, 0.25, 0.5, 0.125, 0.5, m);
+      else {
+        const [fx, , fz] = DIRV[p.facing];
+        box(g, fx ? 0.25 : 0.25, 0.25, 0.25, 0.5 + fx * 0.375, 0.375, 0.5 + fz * 0.375, m);
+      }
+      if (!p.enabled) box(g, 0.3, 0.02, 0.3, 0.5, 1.0, 0.5, torchHead(true));
+      break;
+    }
+    case 'dispenser':
+    case 'dropper': {
+      const model = new THREE.Group();
+      box(model, 1, 1, 1, 0.5, 0.5, 0.5, mat(0x6e6e6e, { edges: true }));
+      box(model, 0.5, 0.02, id === 'dispenser' ? 0.5 : 0.3, 0.5, 1.0, 0.5, p.triggered ? torchHead(true) : mat(0x262626));
+      g.add(orient(model, p.facing));
+      break;
+    }
+    case 'note_block':
+      box(g, 1, 1, 1, 0.5, 0.5, 0.5, mat(0x6b4630, { edges: true }));
+      box(g, 0.5, 0.02, 0.5, 0.5, 1.0, 0.5, p.powered ? torchHead(true) : mat(0x2e1d12));
+      break;
     case 'barrel':
       box(g, 1, 1, 1, 0.5, 0.5, 0.5, mat(0x7a5530, { edges: true }));
       box(g, 0.6, 0.02, 0.6, 0.5, 1.0, 0.5, mat(extra?.power ? lerpColor(0x3a2a1a, 0xff4020, extra.power / 15) : 0x3a2a1a));
@@ -346,7 +398,8 @@ function buildModel(id, p, extra) {
       }
       break;
     default:
-      box(g, 1, 1, 1, 0.5, 0.5, 0.5, mat(0xff00ff, { edges: true }));
+      box(g, 1, 1, 1, 0.5, 0.5, 0.5, mat(BLOCK_COLORS[id] ?? 0xff00ff, { edges: true }));
+      if (extra?.power) box(g, 1.02, 1.02, 1.02, 0.5, 0.5, 0.5, mat(0xff2a10, { opacity: 0.08 + 0.12 * (extra.power / 15) }));
   }
   return g;
 }
@@ -500,8 +553,8 @@ const showConn = (key, vars) => {
 const send = (m) => ws?.readyState === 1 && ws.send(JSON.stringify(m));
 
 function connect() {
-  ws = new WebSocket(`ws://${location.host}`);
-  ws.onopen = () => showConn('conn.ok');
+  ws = LOCAL ? LOCAL.socket() : new WebSocket(`ws://${location.host}`);
+  ws.onopen = () => showConn(LOCAL ? 'conn.local' : 'conn.ok');
   ws.onclose = () => {
     showConn('conn.lost');
     setTimeout(connect, 1500);
@@ -509,6 +562,7 @@ function connect() {
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     if (m.type === 'snapshot') {
+      if (m.colors) BLOCK_COLORS = m.colors;
       clearWorld();
       m.blocks.forEach(setBlock);
       frame(); // a new world: show all of it
@@ -562,7 +616,8 @@ addEventListener('keydown', (e) => {
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 let hovered = null;
-const INTERACTIVE = new Set(['lever', 'stone_button', 'oak_button', 'repeater', 'comparator', 'redstone_wire']);
+const INTERACTIVE_IDS = new Set(['lever', 'stone_button', 'oak_button', 'repeater', 'comparator', 'redstone_wire', 'note_block']);
+const INTERACTIVE = { has: (id) => INTERACTIVE_IDS.has(id) || /_(door|trapdoor)$/.test(id) && !id.startsWith('iron_') };
 
 /** The first visible block cell the mouse ray enters (a grid walk, cheap for any world size). */
 function pick(ev) {
@@ -601,6 +656,9 @@ function hover(ev) {
     `<b>${hovered.id}</b> (${hovered.x}, ${hovered.y}, ${hovered.z})` +
     (props ? `<br><span class="muted">${props}</span>` : '') +
     (power !== undefined ? `<br>${t('tip.power')}: <b>${power}</b>` : '') +
+    (hovered.extra?.items
+      ? `<br>${t('tip.items')}: ${hovered.extra.items.length ? hovered.extra.items.map(([slot, item, n]) => `${n}× ${item}`).join(', ') : `<span class="muted">${t('tip.empty')}</span>`}`
+      : '') +
     (chunkMode
       ? `<br>chunk <b>${hovered.x >> 4}, ${hovered.z >> 4}</b> <span class="muted">${t('tip.chunkClick')}</span>`
       : INTERACTIVE.has(hovered.id) ? `<br><span class="muted">${t('tip.use')}</span>` : '');
@@ -643,6 +701,7 @@ const toast = (msg, err = false) => {
 const busy = (on) => document.body.classList.toggle('busy', on);
 
 async function api(path, body) {
+  if (LOCAL) return LOCAL.api(path, body);
   const init = body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) };
   const r = await fetch(path, init);
   const data = await r.json();
@@ -654,6 +713,29 @@ let designs = [];
 const fmtBytes = (n) => (n > 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`);
 const fmtDate = (ms) => new Date(ms).toLocaleString(locale(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+/** Downloads an /api/... file: a plain navigation, or a Blob made in this tab without a server. */
+function download(href) {
+  if (!LOCAL) return void (location.href = href);
+  LOCAL.file(href).then(
+    ({ name, type, data }) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([data], { type }));
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    },
+    (e) => toast(e.message, true),
+  );
+}
+if (LOCAL) {
+  document.querySelectorAll('a[href^="/api/"]').forEach((a) =>
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      download(a.getAttribute('href'));
+    }),
+  );
+}
 
 async function loadDesigns() {
   try {
@@ -702,7 +784,7 @@ $('designs').addEventListener('click', async (e) => {
   if (!item) return;
   const name = item.dataset.name;
   const act = e.target.closest('button')?.dataset.act;
-  if (act === 'dl') location.href = `/api/designs/file?name=${encodeURIComponent(name)}`;
+  if (act === 'dl') download(`/api/designs/file?name=${encodeURIComponent(name)}`);
   else if (act === 'del') {
     if (!confirm(t('designs.confirmDelete', { name }))) return;
     try {
@@ -721,15 +803,20 @@ $('search').oninput = renderDesigns;
 $('refresh').onclick = loadDesigns;
 
 async function importFile(file) {
-  if (!/\.(json|mcfunction|txt)$/i.test(file.name)) return toast(t('import.onlyTypes'), true);
+  if (!/\.(json|mcfunction|txt|litematic)$/i.test(file.name)) return toast(t('import.onlyTypes'), true);
   busy(true);
   try {
-    const text = await file.text();
-    const r = await api('/api/import', { filename: file.name, text, save: $('keep').checked });
-    const counts =
-      r.placed !== undefined
-        ? t('import.counts', { placed: r.placed.toLocaleString(locale()), skipped: r.skipped ? t('import.skipped', { n: r.skipped }) : '' })
-        : '';
+    const lit = /\.litematic$/i.test(file.name);
+    const body = { filename: file.name, save: $('keep').checked };
+    if (lit) body.data = toBase64(new Uint8Array(await file.arrayBuffer()));
+    else body.text = await file.text();
+    const r = await api('/api/import', body);
+    const skipped = !r.skipped
+      ? ''
+      : lit
+        ? t('import.unsupported', { n: r.skipped, ids: r.unsupported.slice(0, 5).join(', ') + (r.unsupported.length > 5 ? ', …' : '') })
+        : t('import.skipped', { n: r.skipped });
+    const counts = r.placed !== undefined ? t('import.counts', { placed: r.placed.toLocaleString(locale()), skipped }) : '';
     toast(t('import.opened', { file: file.name, counts, saved: r.name ? t('import.savedAs', { name: r.name }) : '' }));
     loadDesigns();
   } catch (e) {
@@ -737,6 +824,11 @@ async function importFile(file) {
   } finally {
     busy(false);
   }
+}
+function toBase64(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
 }
 $('open').onclick = () => $('file').click();
 $('file').onchange = (e) => {

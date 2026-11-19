@@ -4,10 +4,10 @@ Minecraft **Java Edition** redstone'unu game-tick hassasiyetinde taklit eden bir
 Bir MCP sunucusu (Claude gibi bir yapay zekâ asistanı devre kurup test edebilsin diye) ve canlı
 bir 3D web görüntüleyici içerir.
 
-[English](README.md)
+[English](README.md) · **[Tarayıcıda dene](https://ziacud.github.io/redstone-sim/)** (kurulum yok; tasarımlar tarayıcında kalır)
 
-- Gerçek Minecraft 26.3'ten alınmış, yalnızca desteklenen blokları kullanan **688 kaydın
-  hepsinde** oyunla blok blok aynı sonucu verir (1551 kayıt henüz olmayan blok ya da özellik
+- Gerçek Minecraft 26.3'ten alınmış, yalnızca desteklenen blokları kullanan **928 kaydın
+  hepsinde** oyunla blok blok aynı sonucu verir (1311 kayıt henüz olmayan blok ya da özellik
   gerektiriyor; bkz. [Doğruluk](#doğruluk)).
 - Piston, yapışkan piston, slime ve honey, observer, quasi-connectivity ve BUD, 0-tick, blok
   düşürme, update skipping, meşale yanması, flying machine.
@@ -17,8 +17,10 @@ bir 3D web görüntüleyici içerir.
   denenebilir ya da biri 3D izlenebilir.
 - **Geri sarma:** bir makinenin nasıl bozulduğunu görmek için tick tick geri gidilebilir.
 - **Malzeme listesi:** bir yapının gerektirdiği eşyalar, stack ve shulker kutusu sayıları.
-- Gerçek Java dünyalarını (Anvil bölge dosyaları) okur, oyuna yapıştırılabilecek `.mcfunction`
-  dosyaları yazar.
+- Hopper, sandık, dropper, dispenser, varil ve shulker kutusu, içlerindeki eşyalarla; nota
+  bloğu ve kapılar.
+- **Litematica** şemalarını (`.litematic`) açar ve kaydeder, gerçek Java dünyalarını (Anvil
+  bölge dosyaları) okur, oyuna yapıştırılabilecek `.mcfunction` dosyaları yazar.
 
 ## Nasıl çalışır
 
@@ -39,13 +41,29 @@ motor dosyaları port ettikleri vanilla sınıfını adıyla anar, ör. `engine/
 Redstone tozu, meşale (yer/duvar, yanma), şalter, taş ve meşe buton, repeater (gecikme, kilit),
 comparator (karşılaştır/çıkar, konteyner okuma), lamba, observer, piston ve yapışkan piston
 (12 blok sınırı, quasi-connectivity, blok düşürme, slime ve honey), redstone bloğu, bakır
-lambalar (tüm oksitlenme ve waxed türleri), ahşap ve demir tuzak kapıları, cam, basamak,
-obsidyen, beton, yün, taş türleri ve çiftlik blokları: toprak, çim, kum, tarla toprağı, su
-(statik kaynak, akış yok), şeker kamışı, karpuz, balkabağı ve sapları.
+lambalar (tüm oksitlenme ve waxed türleri), ahşap ve demir tuzak kapıları ve kapılar, nota
+bloğu (enstrüman alttaki bloktan ya da üstteki kafadan), hopper (bekleme süresi, kilit), sandık
+ve çift sandık (üstünde iletken blok varsa comparator okuyamaz), dropper, dispenser, varil ve
+shulker kutusu, cam, basamak, obsidyen, beton, yün, kuvars, metal bloklar, kalaslar, kütükler,
+taş türleri ve çiftlik blokları: toprak, çim, kum, tarla toprağı, su (statik kaynak, akış yok),
+şeker kamışı, karpuz, balkabağı ve sapları.
 
-Henüz yok: entity'ler, sıvı akışı, ışık, redstone deneyleri ve hopper, sandık, nota bloğu,
-dispenser ve dropper, kompostlayıcı, crafter, sculk sensör, ray, kapı, tripwire hook, çan,
-kürsü, TNT, yaprak gibi bloklar.
+Konteynerler eşya tutar (stack boyutları oyundaki gibi; comparator onları oyunun float
+hesabıyla okur). Yerdeki eşyalar (item entity) simüle edilmez: koyacak yeri olmayan dispenser ya
+da dropper eşyayı harcar, ve yalnızca düz "eşyayı at" davranışı var (kova, ok, shulker kutusu
+gibi özel dispenser eşyaları yok).
+
+Henüz yok: entity'ler, sıvı akışı, ışık, redstone deneyleri ve kompostlayıcı, crafter, sculk
+sensör, ray, tripwire hook, çan, kürsü, TNT, yaprak gibi bloklar.
+
+## Tarayıcıda
+
+**https://ziacud.github.io/redstone-sim/** simülatörün tamamını sayfanın içinde çalıştırır: aşağıdaki görüntüleyici, demo
+tasarımı, geri sarma, malzeme listesi, `.json`, `.mcfunction` ve `.litematic` açma ve indirme.
+Kaydettiğin tasarımlar tarayıcının deposunda saklanır. MCP sunucusu için yerel kurulum gerekir.
+
+Aynı sayfa her statik web sunucusunda çalışır: depo klasörünü sun ve `public/index.html`'i bir
+alt yoldan aç ya da adrese `?local` ekle.
 
 ## Kurulum
 
@@ -65,9 +83,11 @@ http://localhost:3700/ adresini aç. Arayüz İngilizce ya da Türkçe (yan pane
 düğme; varsayılan tarayıcının dili).
 
 - **Tasarımlar:** `designs/` içindeki kayıtlar (tıkla: yükle, indir, sil). **Dosyadan aç** ya da
-  sürükle-bırak ile `.json` tasarım veya `.mcfunction` açılır; `setblock` ve `fill` komutları
-  oyundaki gibi çalıştırılır.
-- **Bu dünya:** ad verip kaydet, `.json` ya da `.mcfunction` olarak indir, yeni boş dünya.
+  sürükle-bırak ile `.json` tasarım, `.mcfunction` (`setblock` ve `fill` komutları oyundaki gibi
+  çalıştırılır) ya da Litematica `.litematic` açılır (tüm bölgeler, konteyner eşyaları ve
+  bekleyen tick'ler; simülatörün bilmediği bloklar alınmaz ve listelenir).
+- **Bu dünya:** ad verip kaydet, `.json`, `.mcfunction` ya da `.litematic` olarak indir, yeni boş
+  dünya. Konteynerin üstüne gelince içindeki eşyalar görünür.
 - **Sunucu testi:** vanilla gibi restart, chunk dondurma (`C`, sonra bir bloğa tıkla: o chunk
   tick almaz, mavi görünür) ve chunk sınırı tuzağı (`T`): makine sınırı her geçmeye
   kalktığında öte taraf belirlediğin süre tick almaz (ya da bir eklenti piston hareketini
@@ -92,13 +112,14 @@ Proje kökündeki `.mcp.json` sunucuyu tanıtır. Claude Code'u bu klasörde ba�
 | `set_blocks`, `fill` | Oyuncu gibi ya da `/setblock` gibi blok koyar ve kırar |
 | `view_region` | Katman katman metin haritası |
 | `inspect` | Tek blok: durum, güç, bekleyen tick'ler, gelen sinyaller |
-| `interact` | Şalter, buton, repeater gecikmesi, comparator modu, varil sinyali |
+| `interact` | Şalter, buton, kapı, nota bloğu, repeater gecikmesi, comparator modu, varil sinyali, konteyner eşyaları (`set_items`) |
 | `run_ticks` | Belirli sayıda tick çalıştırır, problardan dalga formu ve kenar listesi döner |
 | `sim_control` | Duraklat, devam et, adım at, tps ayarla, geri sar |
 | `chunk_control` | Chunk dondur/çöz, sunucu restart'ı |
 | `clear_world` | Baştan başla |
 | `save_design`, `load_design`, `list_designs` | `designs/` klasörüne kaydeder ve yükler |
 | `export_mcfunction` | Gerçek Minecraft için `/setblock` komutları üretir |
+| `export_litematic`, `import_litematic` | Dünyayı (ya da bir bölgesini) `designs/` içine Litematica şeması olarak kaydeder, şema açar |
 | `material_list` | Bir yapının (ya da bir bölgesinin) gerektirdiği eşyalar, stack ve shulker sayıları |
 
 ## Sunucu koşulları: restart ve unload edilmiş chunk'lar
@@ -138,11 +159,16 @@ yönde (4 dönüş ve aynalanmış halleri) koşulur ve üç seviyede kıyaslan�
 - `order`: her blok değişikliği, komşu ve shape update'i, zamanlanmış tick ve blok olayı,
   oyundaki sırasıyla
 
-**Desteklenen bloklarla kurulmuş 688 kaydın hepsi üç seviyede de eşleşiyor** (çalıştırıcı
-`ran 688 traces, skipped 1551 (unsupported)` yazar). Bunlara konuma bağlı toz, QC/BUD, 0-tick,
-blok düşürme, update skipping, meşale yanması, flying machine ve piston kapıları dahil. Atlanan
+**Desteklenen bloklarla kurulmuş 928 kaydın hepsi üç seviyede de eşleşiyor** (çalıştırıcı
+`ran 928 traces, skipped 1311 (unsupported)` yazar). Bunlara konuma bağlı toz, QC/BUD, 0-tick,
+blok düşürme, update skipping, meşale yanması, flying machine, piston kapıları, hopper
+zincirleri, konteyner okuyan comparator'lar, nota blokları ve kapılar dahil. Atlanan
 kayıtlar simülatörde henüz olmayan bir şey kullanıyor: çoğu entity (796), redstone deneyleri
-(112) ve su akışı (80), kalanı hopper, sandık, nota bloğu, dropper, dispenser, ray gibi bloklar.
+(112) ve su akışı (80), kalanı sculk sensör, crafter, kompostlayıcı, ray gibi bloklar ya da özel
+dispenser eşyaları.
+
+Kayıtlar konteyner içeriklerini de tutar; `--items` bunları da karşılaştırır (oyunun rastgele
+tohumuna bağlı rastgele slot seçen bir dispenser kaydı dışında hepsi eşleşiyor).
 
 Kaydı olmayan iki davranış var: desteği kalkan tozun ve repeater/comparator'ın shape update
 anında kırılması. Bunlar Pumpkin'in 26.3 portuna ve vanilla 1.21.2+ koduna göre uygulandı.
@@ -152,7 +178,7 @@ node scripts/fetch-tickwright.js      # kayıtları vendor/tickwright içine ind
 node conformance/run.js --verbose     # özet ve ilk farklılıklar
 ```
 
-İndirme scripti 688/688 sonucunun ölçüldüğü tickwright commit'ine sabitlenmiştir.
+İndirme scripti 928/928 sonucunun ölçüldüğü tickwright commit'ine sabitlenmiştir.
 
 ## Testler
 
@@ -161,7 +187,8 @@ npm test
 ```
 
 Birim testleri bilinen zamanlamaları kontrol eder (repeater gecikmeleri, lamba 4 gt, meşale
-yanması, observer, piston zamanlaması, QC/BUD, yapışkan piston blok düşürme, 12 blok sınırı),
+yanması, observer, piston zamanlaması, QC/BUD, yapışkan piston blok düşürme, 12 blok sınırı,
+hopper, sandık, dropper, nota bloğu, kapı, geri sarma),
 ayrıca MCP sunucusunu uçtan uca ve tüm uyumluluk kayıtlarını test eder (kayıtlar indirilmemişse
 bu test atlanır).
 
