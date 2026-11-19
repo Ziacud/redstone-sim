@@ -6,7 +6,8 @@
 import { Simulation } from '../../server/sim.js';
 import { seed } from 'node:fs';
 
-const SHIPPED = ['demo', 'example-flying-machine', 'example-t-flip-flop', 'example-bud', 'example-repeater-lock'];
+const SHIPPED = ['demo', 'example-flying-machine', 'example-t-flip-flop', 'example-bud', 'example-repeater-lock',
+  'example-item-sorter', 'example-auto-crafter', 'example-hopper-clock', 'example-sculk-wireless'];
 
 const pipe = async (bytes, stream) =>
   new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
