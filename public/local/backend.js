@@ -13,16 +13,18 @@ const pipe = async (bytes, stream) =>
 
 export async function start() {
   // the shipped designs (not stored: a newer version of the page brings newer ones)
-  await Promise.all(
+  const texts = await Promise.all(
     SHIPPED.map(async (name) => {
       try {
         const r = await fetch(new URL(`../../designs/${name}.json`, import.meta.url));
-        if (r.ok) seed(`designs/${name}.json`, await r.text());
+        return r.ok ? await r.text() : null;
       } catch {
-        // missing: leave it out
+        return null; // missing: leave it out
       }
     }),
   );
+  // seeded in SHIPPED order, so the design list shows them in that order
+  SHIPPED.forEach((name, i) => texts[i] !== null && seed(`designs/${name}.json`, texts[i]));
   const sim = new Simulation({
     designsDir: 'designs',
     gzip: (b) => pipe(b, new CompressionStream('gzip')),
