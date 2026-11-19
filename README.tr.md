@@ -15,6 +15,8 @@ bir 3D web görüntüleyici içerir.
   machine'i yoğun bir sunucu gibi chunk sınırında durduran sınır tuzakları.
 - Arayüzsüz çalışır ve her seferinde aynı sonucu verir: bir scriptle binlerce senaryo
   denenebilir ya da biri 3D izlenebilir.
+- **Görüntüleyicide kurma** oyundaki gibi (sağ tık koyar, sol tık kırar), herhangi bir bloğun
+  sinyalini **grafikte** izleme ve bir dünyayı **bağlantı olarak paylaşma**.
 - **Geri sarma:** bir makinenin nasıl bozulduğunu görmek için tick tick geri gidilebilir.
 - **Malzeme listesi:** bir yapının gerektirdiği eşyalar, stack ve shulker kutusu sayıları.
 - Hopper, sandık, dropper, dispenser, varil ve shulker kutusu, içlerindeki eşyalarla; nota
@@ -59,7 +61,9 @@ sensör, ray, tripwire hook, çan, kürsü, TNT, yaprak gibi bloklar.
 ## Tarayıcıda
 
 **https://ziacud.github.io/redstone-sim/** simülatörün tamamını sayfanın içinde çalıştırır: aşağıdaki görüntüleyici, demo
-tasarımı, geri sarma, malzeme listesi, `.json`, `.mcfunction` ve `.litematic` açma ve indirme.
+tasarımı ve örnekler (flying machine, T flip-flop, BUD, repeater kilidi), kurma, sinyal grafiği,
+paylaşım bağlantısı, geri sarma, malzeme listesi, `.json`, `.mcfunction` ve `.litematic` açma ve
+indirme.
 Kaydettiğin tasarımlar tarayıcının deposunda saklanır. MCP sunucusu için yerel kurulum gerekir.
 
 Aynı sayfa her statik web sunucusunda çalışır: depo klasörünü sun ve `public/index.html`'i bir
@@ -82,6 +86,14 @@ node server/index.js --viewer-only --load demo
 http://localhost:3700/ adresini aç. Arayüz İngilizce ya da Türkçe (yan panelin üstündeki
 düğme; varsayılan tarayıcının dili).
 
+- **Kur:** paletten bir blok seç (ya da `B`). Sağ tık onu farenin altındaki yüzeye koyar, sol tık
+  kırar, şalter, buton, repeater… üstünde sağ tık kullanır (Shift + sağ tık koyar), orta tık bloğu
+  seçer, `1`–`9` son kullanılanlar. Yön, oyunun oyuncunun bakışını izlediği gibi kamerayı izler.
+- **Sinyal grafiği:** bir bloğun üstüne gelip `G`'ye bas: gücü (piston, lamba, kapı gibilerde
+  açık/kapalı hâli) her tick'ten sonra ölçülür ve son 50–400 game tick çizilir, en fazla 8 blok.
+  Geri sarınca grafik de kırpılır.
+- **Paylaşım bağlantısı:** dünyanın tamamını içine sıkıştırılmış bir bağlantı kopyalar (demo
+  yaklaşık 3 KB); bağlantıyı tarayıcı demosunda açan o dünyayı görür.
 - **Tasarımlar:** `designs/` içindeki kayıtlar (tıkla: yükle, indir, sil). **Dosyadan aç** ya da
   sürükle-bırak ile `.json` tasarım, `.mcfunction` (`setblock` ve `fill` komutları oyundaki gibi
   çalıştırılır) ya da Litematica `.litematic` açılır (tüm bölgeler, konteyner eşyaları ve

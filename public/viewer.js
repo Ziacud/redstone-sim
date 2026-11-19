@@ -563,6 +563,7 @@ function connect() {
     const m = JSON.parse(ev.data);
     if (m.type === 'snapshot') {
       if (m.colors) BLOCK_COLORS = m.colors;
+      if (m.palette) setPalette(m.palette);
       clearWorld();
       m.blocks.forEach(setBlock);
       frame(); // a new world: show all of it
@@ -570,11 +571,125 @@ function connect() {
     } else if (m.type === 'update') {
       m.changes.forEach(setBlock);
     } else if (m.type === 'error') {
-      showConn('conn.error', { msg: m.message });
+      toast(m.message, true);
     }
     if ('time' in m) showStatus(m);
+    if (m.probes) setProbes(m.probes);
+    if ('time' in m) trimTraces(m.time);
+    if (m.samples) addSamples(m.samples);
+    if (probeList.length && ('time' in m || m.samples)) drawGraph();
   };
 }
+
+// ------------------------------------------------------------------ signal graph
+
+// Blocks added with G are sampled by the simulator after every tick ("samples" in updates); each
+// gets a row with its value 0..15 over the last graphSpan game ticks.
+const GRAPH_COLORS = ['#ff5a4f', '#5fd068', '#5aa9ff', '#e6b13a', '#c77dff', '#4dd4c6', '#ff8fc7', '#c0c4cc'];
+const SPANS = [50, 100, 200, 400];
+let graphSpan = 100;
+let probeList = [];
+const traces = new Map(); // "x,y,z" -> [[time, value]]
+
+function setProbes(list) {
+  probeList = list;
+  const keys = new Set(list.map((p) => p.join(',')));
+  for (const k of [...traces.keys()]) if (!keys.has(k)) traces.delete(k);
+  for (const k of keys) if (!traces.has(k)) traces.set(k, []);
+  document.body.classList.toggle('graph', list.length > 0);
+}
+/** Forgets samples after `time` (after a rewind). */
+function trimTraces(time) {
+  for (const tr of traces.values()) while (tr.length && tr[tr.length - 1][0] > time) tr.pop();
+}
+function addSamples(samples) {
+  for (const [t, vals] of samples) {
+    probeList.forEach((p, i) => {
+      const tr = traces.get(p.join(','));
+      if (!tr) return;
+      while (tr.length && tr[tr.length - 1][0] >= t) tr.pop();
+      tr.push([t, vals[i]]);
+      if (tr.length > 4000) tr.splice(0, tr.length - 4000);
+    });
+  }
+}
+function drawGraph() {
+  const cv = $('gcanvas');
+  if (!probeList.length || !cv.clientWidth) return;
+  const rowH = 24, top = 2, axisH = 15, labelW = 190;
+  const w = cv.clientWidth;
+  const h = top + probeList.length * rowH + axisH;
+  const dpr = devicePixelRatio || 1;
+  cv.style.height = `${h}px`;
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(h * dpr);
+  }
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  const now = status.time ?? 0;
+  const t0 = now + 1 - graphSpan; // the window covers ticks t0 .. now, each one wide
+  const plotW = w - labelW - 6;
+  const X = (t) => labelW + ((t - t0) / graphSpan) * plotW;
+  g.font = '11px ui-monospace, Consolas, monospace';
+  g.textBaseline = 'middle';
+  const every = graphSpan <= 100 ? 10 : graphSpan <= 200 ? 20 : 50;
+  g.textAlign = 'center';
+  for (let t = Math.ceil(t0 / every) * every; t <= now; t += every) {
+    const x = Math.round(X(t)) + 0.5;
+    g.strokeStyle = '#2c313c';
+    g.beginPath();
+    g.moveTo(x, top);
+    g.lineTo(x, h - axisH);
+    g.stroke();
+    g.fillStyle = '#9aa1ad';
+    g.fillText(String(t), Math.min(Math.max(x, labelW + 12), w - 14), h - axisH / 2);
+  }
+  probeList.forEach((p, i) => {
+    const key = p.join(',');
+    const y0 = top + i * rowH;
+    const base = y0 + rowH - 4;
+    const amp = rowH - 8;
+    const color = GRAPH_COLORS[i % GRAPH_COLORS.length];
+    const tr = traces.get(key) ?? [];
+    const last = tr.length ? tr[tr.length - 1][1] : null;
+    g.textAlign = 'left';
+    g.fillStyle = color;
+    const label = `${blocks.get(key)?.id ?? 'air'} ${p.join(' ')}`;
+    let text = label;
+    while (text.length > 4 && g.measureText(`${text} ${last ?? ''}`).width > labelW - 10) text = text.slice(0, -2);
+    g.fillText(text === label ? `${text}  ${last ?? ''}` : `${text}…  ${last ?? ''}`, 2, y0 + rowH / 2);
+    g.strokeStyle = '#232731';
+    g.beginPath();
+    g.moveTo(labelW, base + 0.5);
+    g.lineTo(w, base + 0.5);
+    g.stroke();
+    g.beginPath();
+    let first = true;
+    for (const [t, v] of tr) {
+      if (t + 1 <= t0) continue;
+      const y = base - (v / 15) * amp;
+      const xa = X(Math.max(t, t0));
+      if (first) g.moveTo(xa, y);
+      else g.lineTo(xa, y);
+      g.lineTo(X(t + 1), y);
+      first = false;
+    }
+    g.strokeStyle = color;
+    g.lineWidth = 1.5;
+    g.stroke();
+    g.lineWidth = 1;
+  });
+}
+$('gspan').onclick = () => {
+  graphSpan = SPANS[(SPANS.indexOf(graphSpan) + 1) % SPANS.length];
+  $('gspan').textContent = `${graphSpan} gt`;
+  drawGraph();
+};
+$('gclear').onclick = () => send({ type: 'probes_clear' });
+addEventListener('resize', drawGraph);
+
 connect();
 
 $('play').onclick = () => send({ type: status.running ? 'pause' : 'resume' });
@@ -603,10 +718,14 @@ addEventListener('keydown', (e) => {
   else if (k === 'f') frame();
   else if (k === 'c') setChunkMode(!chunkMode);
   else if (k === 't') setTrapMode(!trapMode);
+  else if (k === 'b') setBuildMode(!buildMode);
+  else if (k === 'g' && hovered) send({ type: 'probe', x: hovered.x, y: hovered.y, z: hovered.z });
+  else if (/^[1-9]$/.test(e.key) && recent[Number(e.key) - 1]) selectBlock(recent[Number(e.key) - 1]);
   else if (k === 'p') document.body.classList.toggle('collapsed');
   else if (e.key === 'Escape') {
     setChunkMode(false);
     setTrapMode(false);
+    setBuildMode(false);
     document.body.classList.remove('mats');
   }
 });
@@ -619,6 +738,8 @@ let hovered = null;
 const INTERACTIVE_IDS = new Set(['lever', 'stone_button', 'oak_button', 'repeater', 'comparator', 'redstone_wire', 'note_block']);
 const INTERACTIVE = { has: (id) => INTERACTIVE_IDS.has(id) || /_(door|trapdoor)$/.test(id) && !id.startsWith('iron_') };
 
+let pickHit = null; // { face: outward normal of the face the ray entered through, point } of the last pick
+
 /** The first visible block cell the mouse ray enters (a grid walk, cheap for any world size). */
 function pick(ev) {
   mouse.set((ev.clientX / innerWidth) * 2 - 1, -(ev.clientY / innerHeight) * 2 + 1);
@@ -630,13 +751,22 @@ function pick(ev) {
   const v = [d.x, d.y, d.z];
   const tMax = [0, 1, 2].map((i) => (v[i] ? ((step[i] > 0 ? cell[i] + 1 : cell[i]) - p[i]) / v[i] : Infinity));
   const tDelta = [0, 1, 2].map((i) => (v[i] ? Math.abs(1 / v[i]) : Infinity));
+  let face = null;
+  let tHit = 0;
   for (let n = 0; n < 1500; n++) {
     const b = blocks.get(`${cell[0]},${cell[1]},${cell[2]}`);
-    if (b && b.y <= cutY && b.id !== 'water') return b;
+    if (b && b.y <= cutY && b.id !== 'water') {
+      pickHit = { face, point: [o.x + d.x * tHit, o.y + d.y * tHit, o.z + d.z * tHit] };
+      return b;
+    }
     const i = tMax[0] < tMax[1] ? (tMax[0] < tMax[2] ? 0 : 2) : tMax[1] < tMax[2] ? 1 : 2;
+    tHit = tMax[i];
     cell[i] += step[i];
+    face = [0, 0, 0];
+    face[i] = -step[i];
     tMax[i] += tDelta[i];
   }
+  pickHit = null;
   return null;
 }
 
@@ -645,6 +775,9 @@ let lastMove = null;
 renderer.domElement.addEventListener('pointermove', (ev) => (lastMove = ev));
 function hover(ev) {
   hovered = pick(ev);
+  const target = buildMode && hovered ? placeTarget(hovered) : null;
+  ghost.visible = !!target;
+  if (target) ghost.position.set(target.x + 0.5, target.y + 0.5, target.z + 0.5);
   if (!hovered) {
     tip.style.display = 'none';
     renderer.domElement.style.cursor = '';
@@ -661,21 +794,26 @@ function hover(ev) {
       : '') +
     (chunkMode
       ? `<br>chunk <b>${hovered.x >> 4}, ${hovered.z >> 4}</b> <span class="muted">${t('tip.chunkClick')}</span>`
-      : INTERACTIVE.has(hovered.id) ? `<br><span class="muted">${t('tip.use')}</span>` : '');
+      : buildMode
+        ? `<br><span class="muted">${t('tip.build', { block: buildBlock })}</span>`
+        : INTERACTIVE.has(hovered.id) ? `<br><span class="muted">${t('tip.use')}</span>` : '');
   tip.style.display = 'block';
   tip.style.left = `${Math.min(ev.clientX + 16, innerWidth - 360)}px`;
   tip.style.top = `${ev.clientY + 16}px`;
-  renderer.domElement.style.cursor = chunkMode || trapMode || INTERACTIVE.has(hovered.id) ? 'pointer' : '';
+  renderer.domElement.style.cursor = buildMode ? 'crosshair' : chunkMode || trapMode || INTERACTIVE.has(hovered.id) ? 'pointer' : '';
 }
 
 let downAt = null;
 renderer.domElement.addEventListener('pointerdown', (ev) => (downAt = [ev.clientX, ev.clientY, ev.button]));
+renderer.domElement.addEventListener('contextmenu', (ev) => ev.preventDefault());
 renderer.domElement.addEventListener('pointerup', (ev) => {
-  if (!downAt || downAt[2] !== 0) return;
+  if (!downAt || downAt[2] !== ev.button) return;
   const moved = Math.hypot(ev.clientX - downAt[0], ev.clientY - downAt[1]);
   downAt = null;
   if (moved > 4) return;
   const b = pick(ev);
+  if (buildMode && !trapMode && !chunkMode) return b && buildClick(ev, b);
+  if (ev.button !== 0) return;
   if (b && trapMode) {
     send({
       type: 'trap',
@@ -688,6 +826,127 @@ renderer.domElement.addEventListener('pointerup', (ev) => {
   } else if (b && chunkMode) send({ type: 'chunk', cx: b.x >> 4, cz: b.z >> 4 });
   else if (b && INTERACTIVE.has(b.id)) send({ type: 'use', x: b.x, y: b.y, z: b.z });
 });
+
+// ------------------------------------------------------------------ build mode
+
+// Right click places the selected block on the face under the mouse, left click breaks, middle
+// click picks. Orientation follows the camera the way the game follows the player's view.
+let buildMode = false;
+let buildBlock = 'redstone_wire';
+let PALETTE = [];
+let recent = [];
+const ghost = new THREE.Mesh(
+  new THREE.BoxGeometry(1.02, 1.02, 1.02),
+  new THREE.MeshBasicMaterial({ color: 0xff3b2f, transparent: true, opacity: 0.28, depthWrite: false }),
+);
+ghost.visible = false;
+scene.add(ghost);
+
+const DIRS = { east: [1, 0, 0], west: [-1, 0, 0], up: [0, 1, 0], down: [0, -1, 0], south: [0, 0, 1], north: [0, 0, -1] };
+const dirOf = (v) => Object.keys(DIRS).find((k) => DIRS[k].every((c, i) => c === v[i]));
+
+/** The player's nearest looking direction (3D) and horizontal facing, from the camera. */
+function lookDirs() {
+  const d = camera.getWorldDirection(new THREE.Vector3());
+  const v = [d.x, d.y, d.z];
+  const i = v.map(Math.abs).indexOf(Math.max(...v.map(Math.abs)));
+  const n = [0, 0, 0];
+  n[i] = Math.sign(v[i]);
+  return { look: dirOf(n), horiz: Math.abs(d.x) > Math.abs(d.z) ? (d.x > 0 ? 'east' : 'west') : d.z > 0 ? 'south' : 'north' };
+}
+
+/** The block string a player would place: face = clicked face, fy = hit height on that face (0..1). */
+function placement(id, face, fy) {
+  const { look, horiz } = lookDirs();
+  const side = face !== 'up' && face !== 'down';
+  if (id === 'redstone_torch') return side ? `redstone_wall_torch[facing=${face}]` : id;
+  if (/^(lever|\w+_button)$/.test(id))
+    return side ? `${id}[face=wall,facing=${face}]` : `${id}[face=${face === 'up' ? 'floor' : 'ceiling'},facing=${horiz}]`;
+  if (id === 'repeater' || id === 'comparator') return `${id}[out=${horiz}]`;
+  if (id === 'observer') return `${id}[facing=${look}]`;
+  if (/^((sticky_)?piston|dispenser|dropper)$/.test(id)) return `${id}[facing=${OPP[look]}]`;
+  if (id === 'hopper') return `${id}[facing=${side ? OPP[face] : 'down'}]`;
+  if (id === 'chest') return `${id}[facing=${OPP[horiz]}]`;
+  if (/_door$/.test(id)) return `${id}[facing=${horiz}]`;
+  if (/_trapdoor$/.test(id))
+    return side
+      ? `${id}[facing=${face},half=${fy > 0.5 ? 'top' : 'bottom'}]`
+      : `${id}[facing=${OPP[horiz]},half=${face === 'down' ? 'top' : 'bottom'}]`;
+  if (/_slab$/.test(id)) return `${id}[type=${face === 'down' || (side && fy > 0.5) ? 'top' : 'bottom'}]`;
+  if (/_(log|wood)$/.test(id)) return `${id}[axis=${side ? (face === 'east' || face === 'west' ? 'x' : 'z') : 'y'}]`;
+  if (/shulker_box$/.test(id)) return `${id}[facing=${face}]`;
+  return id;
+}
+
+/** The cell a right click on block b would place into (from the last pick). */
+function placeTarget(b) {
+  if (!pickHit?.face) return null;
+  const n = pickHit.face;
+  return { x: b.x + n[0], y: b.y + n[1], z: b.z + n[2] };
+}
+
+function buildClick(ev, b) {
+  if (ev.button === 0) return send({ type: 'break', x: b.x, y: b.y, z: b.z });
+  if (ev.button === 1) return selectBlock(b.id.replace('redstone_wall_torch', 'redstone_torch').replace(/^attached_/, ''));
+  if (INTERACTIVE.has(b.id) && !ev.shiftKey) return send({ type: 'use', x: b.x, y: b.y, z: b.z });
+  const target = placeTarget(b);
+  if (!target) return;
+  send({ type: 'place', ...target, block: placement(buildBlock, dirOf(pickHit.face), pickHit.point[1] - b.y) });
+  recent = [buildBlock, ...recent.filter((id) => id !== buildBlock)].slice(0, 9);
+  renderRecent();
+}
+
+function setBuildMode(on) {
+  if (on) {
+    setChunkMode(false);
+    setTrapMode(false);
+  }
+  buildMode = on;
+  if (!on) ghost.visible = false;
+  document.body.classList.toggle('buildmode', on);
+  $('buildmode').classList.toggle('on', on);
+}
+
+function selectBlock(id) {
+  if (!PALETTE.includes(id)) return;
+  buildBlock = id;
+  setBuildMode(true);
+  renderPalette();
+  renderRecent();
+}
+
+const COMMON = [
+  'redstone_wire', 'redstone_torch', 'repeater', 'comparator', 'lever', 'stone_button', 'oak_button', 'observer',
+  'piston', 'sticky_piston', 'slime_block', 'honey_block', 'redstone_block', 'redstone_lamp', 'target', 'note_block',
+  'copper_bulb', 'hopper', 'chest', 'barrel', 'dropper', 'dispenser', 'oak_door', 'iron_door', 'oak_trapdoor',
+  'iron_trapdoor', 'stone', 'smooth_stone', 'glass', 'obsidian', 'smooth_stone_slab', 'white_concrete', 'white_wool',
+];
+const swatch = (id) => {
+  const c = BLOCK_COLORS[id];
+  return c === undefined ? '#8a8f99' : `#${c.toString(16).padStart(6, '0')}`;
+};
+const blockButton = (id) =>
+  `<button data-block="${id}" class="${id === buildBlock ? 'on' : ''}" title="${id}"><span class="sw" style="background:${swatch(id)}"></span><span class="nm">${id.replace(/_/g, ' ')}</span></button>`;
+
+function setPalette(ids) {
+  const rank = (id) => (COMMON.includes(id) ? COMMON.indexOf(id) : COMMON.length);
+  PALETTE = [...ids].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+  renderPalette();
+}
+function renderPalette() {
+  const q = $('bsearch').value.trim().toLowerCase().replace(/\s+/g, '_');
+  $('palette').innerHTML = PALETTE.filter((id) => id.includes(q)).map(blockButton).join('');
+}
+function renderRecent() {
+  $('recent').innerHTML = recent.map((id, i) => blockButton(id).replace('<span class="nm">', `<span class="nm"><kbd>${i + 1}</kbd> `)).join('');
+}
+for (const el of ['palette', 'recent'])
+  $(el).addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-block]');
+    if (b) selectBlock(b.dataset.block);
+  });
+$('bsearch').oninput = renderPalette;
+$('buildmode').onclick = () => setBuildMode(!buildMode);
 
 // ------------------------------------------------------------------ side panel: files, tests
 
@@ -755,7 +1014,7 @@ function renderDesigns() {
         .map(
           (d) => `<div class="item" tabindex="0" data-name="${esc(d.name)}" title="${esc(t('designs.clickToLoad'))}">
         <div class="info"><div class="name">${esc(d.name)}</div>
-        <div class="meta">${esc(t('designs.meta', { blocks: d.blocks.toLocaleString(locale()), size: fmtBytes(d.bytes), date: fmtDate(d.modified) }))}</div></div>
+        <div class="meta">${esc(t('designs.meta', { blocks: d.blocks.toLocaleString(locale()), size: fmtBytes(d.bytes), date: d.modified ? fmtDate(d.modified) : t('designs.shipped') }))}</div></div>
         <div class="acts"><button data-act="dl" title="${esc(t('designs.download'))}">⬇</button><button data-act="del" title="${esc(t('designs.delete'))}">🗑</button></div></div>`,
         )
         .join('')
@@ -830,6 +1089,60 @@ function toBase64(bytes) {
   for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(s);
 }
+// ------------------------------------------------------------------ share links
+
+// The world (redstone-sim JSON, deflated, base64url) rides in the address after "#d=", so a link
+// to the browser demo carries the whole build. Opening such a link imports it.
+const DEMO_URL = 'https://ziacud.github.io/redstone-sim/public/';
+const pipeBytes = async (bytes, stream) =>
+  new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
+
+async function worldJson() {
+  if (LOCAL) return (await LOCAL.file('/api/world.json')).data;
+  const r = await fetch('/api/world.json');
+  if (!r.ok) throw new Error(r.statusText);
+  return r.text();
+}
+
+async function shareLink() {
+  const packed = await pipeBytes(new TextEncoder().encode(await worldJson()), new CompressionStream('deflate-raw'));
+  const code = toBase64(packed).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const base = LOCAL ? location.origin + location.pathname : DEMO_URL;
+  return `${base}#d=${code}`;
+}
+
+$('share').onclick = async () => {
+  try {
+    const link = await shareLink();
+    const kb = Math.max(1, Math.round(link.length / 1024));
+    try {
+      await navigator.clipboard.writeText(link);
+      toast(t(kb > 60 ? 'share.long' : 'share.copied', { kb }), kb > 60);
+    } catch {
+      prompt(t('share.copyManually'), link);
+    }
+  } catch (e) {
+    toast(e.message, true);
+  }
+};
+
+async function openSharedLink() {
+  const m = location.hash.match(/^#d=([\w-]+)$/);
+  if (!m) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  try {
+    const b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
+    const packed = Uint8Array.from(atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4)), (c) => c.charCodeAt(0));
+    const text = new TextDecoder().decode(await pipeBytes(packed, new DecompressionStream('deflate-raw')));
+    await api('/api/import', { filename: 'shared.json', text });
+    toast(t('share.loaded'));
+  } catch (e) {
+    toast(t('share.bad', { msg: e.message }), true);
+  }
+}
+openSharedLink();
+addEventListener('hashchange', openSharedLink);
+
 $('open').onclick = () => $('file').click();
 $('file').onchange = (e) => {
   if (e.target.files[0]) importFile(e.target.files[0]);
@@ -915,7 +1228,10 @@ $('restart').onclick = () => {
 };
 let chunkMode = false;
 function setChunkMode(on) {
-  if (on) setTrapMode(false);
+  if (on) {
+    setTrapMode(false);
+    if (buildMode) setBuildMode(false);
+  }
   chunkMode = on;
   document.body.classList.toggle('chunkmode', on);
   $('chunkmode').classList.toggle('on', on);

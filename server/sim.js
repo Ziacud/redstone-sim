@@ -21,6 +21,9 @@ import { ItemStack, EMPTY, maxStackSize } from '../engine/items.js';
 import { ContainerBlockEntity } from '../engine/blocks/containers.js';
 import { readNbt, writeNbt, litematicToWorld, worldToLitematic } from '../engine/litematic.js';
 
+const MAX_PROBES = 8;
+const MAX_PENDING_SAMPLES = 600;
+
 const ARROW = { north: '↑', south: '↓', east: '→', west: '←', up: 'U', down: 'D' };
 
 // Rewind history: an exact copy of the world every SNAP_EVERY game ticks and before the first
@@ -64,6 +67,8 @@ export class Simulation {
     this.history = []; // rewind snapshots, oldest first (see SNAP_EVERY)
     this._editSeq = 0; // bumped by every edit; a snapshot is due when it differs from _snapSeq
     this._snapSeq = -1;
+    this.probes = []; // the viewer's signal graph: blocks sampled after every tick
+    this._samples = []; // [time, values] not yet sent
     this.newWorld({ floor: 32 });
     this._last = performance.now();
     this._acc = 0;
@@ -139,6 +144,33 @@ export class Simulation {
       } else if (t.left === 0 && t.wait > 0) t.wait--;
     }
     if (w.time % SNAP_EVERY === 0) this._takeSnapshot(false);
+    if (this.probes.length) {
+      this._samples.push([w.time, this.probes.map((p) => this.probeValue(p))]);
+      if (this._samples.length > MAX_PENDING_SAMPLES) this._samples.splice(0, this._samples.length - MAX_PENDING_SAMPLES);
+    }
+  }
+
+  // ---------------------------------------------------------------- signal graph (viewer)
+
+  /** A graph value 0..15: the block's power, else 15/0 for its on/off property (piston extended, lamp lit…). */
+  probeValue({ x, y, z }) {
+    const p = pos(x, y, z);
+    const v = this.world.powerLevel(p);
+    if (v !== null && v !== undefined) return v;
+    const props = this.world.getBlockState(p).props ?? {};
+    for (const k of ['extended', 'lit', 'open', 'powered', 'triggered', 'enabled'])
+      if (k in props) return props[k] === true || props[k] === 'true' ? 15 : 0;
+    return 0;
+  }
+
+  /** Adds or removes a block from the signal graph (at most MAX_PROBES). */
+  toggleProbe(x, y, z) {
+    const i = this.probes.findIndex((p) => p.x === x && p.y === y && p.z === z);
+    if (i >= 0) this.probes.splice(i, 1);
+    else if (this.probes.length < MAX_PROBES) this.probes.push({ x, y, z });
+    else throw new Error(`at most ${MAX_PROBES} blocks in the graph`);
+    this._samples = [];
+    this.broadcast({ type: 'status', ...this.status() });
   }
 
   // ---------------------------------------------------------------- rewind
@@ -149,6 +181,8 @@ export class Simulation {
   }
 
   _resetHistory() {
+    this.probes = [];
+    this._samples = [];
     this.history = [];
     this._editSeq++;
     this._takeSnapshot(false);
@@ -302,6 +336,7 @@ export class Simulation {
       design: this.designName,
       frozen: [...this.world.frozenChunks],
       paper: this.paper,
+      probes: this.probes.map((p) => [p.x, p.y, p.z]),
       trap: this.trap && { border: this.trap.border, mode: this.trap.mode, hold: this.trap.hold, reload: this.trap.reload, fired: this.trap.fired, left: this.trap.left },
     };
   }
@@ -373,12 +408,18 @@ export class Simulation {
     this.world.changed.clear();
     const colors = {};
     for (const b of allBlocks()) if (b.color !== undefined) colors[b.id] = b.color;
-    return { ...this.status(), blocks, colors };
+    // blocks a player can place (the viewer's palette); internal ones are left out
+    const palette = allBlocks()
+      .map((b) => b.id)
+      .filter((id) => !/^(air|piston_head|moving_piston|redstone_wall_torch|attached_\w+)$/.test(id));
+    return { ...this.status(), blocks, colors, palette };
   }
 
   /** Sends changed blocks (plus their neighbors, whose displayed power may have changed). */
   flush() {
     const changed = this.world.flushChanged();
+    const samples = this._samples;
+    this._samples = [];
     if (!this.listeners.size) return;
     const keys = new Map();
     for (const p of changed) {
@@ -389,7 +430,7 @@ export class Simulation {
       }
     }
     const changes = [...keys.values()].map((p) => this.encodeBlock(p));
-    this.broadcast({ type: 'update', ...this.status(), changes });
+    this.broadcast({ type: 'update', ...this.status(), changes, ...(samples.length ? { samples } : {}) });
   }
 
   // ---------------------------------------------------------------- editing
@@ -722,6 +763,13 @@ export class Simulation {
   /** One viewer message (the WebSocket protocol), then a flush. */
   handleMessage(m) {
     if (m.type === 'use') this.use(m.x, m.y, m.z);
+    else if (m.type === 'place') this.setBlock(m.x, m.y, m.z, String(m.block), 'place');
+    else if (m.type === 'break') this.setBlock(m.x, m.y, m.z, 'air');
+    else if (m.type === 'probe') this.toggleProbe(m.x | 0, m.y | 0, m.z | 0);
+    else if (m.type === 'probes_clear') {
+      this.probes = [];
+      this.broadcast({ type: 'status', ...this.status() });
+    }
     else if (m.type === 'pause') this.setRunning(false);
     else if (m.type === 'resume') this.setRunning(true);
     else if (m.type === 'step') this.step(Math.max(1, Math.min(10000, m.n | 0 || 1)));

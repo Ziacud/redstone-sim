@@ -65,6 +65,15 @@
   .item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; cursor: pointer;
     border: 1px solid transparent; }
   .item:hover { background: #222631; }
+  .palette { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 4px; max-height: 26vh;
+    overflow-y: auto; margin: 8px -4px 0; padding: 0 4px; }
+  .palette:empty { display: none; }
+  .palette button { justify-content: flex-start; padding: 4px 6px; font-size: 12px; min-width: 0; }
+  .palette .sw { width: 12px; height: 12px; border-radius: 3px; flex: none; border: 1px solid rgba(0, 0, 0, 0.4); }
+  .palette .nm { overflow: hidden; text-overflow: ellipsis; }
+  .palette kbd { font-size: 10px; }
+  #bsearch { margin-top: 8px; }
+  .hint { font-size: 11.5px; margin: 8px 0 0; }
   .item.current { border-color: var(--accent); background: var(--accent-soft); }
   .item .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .item .meta { font-size: 11px; color: var(--muted); }
@@ -92,6 +101,13 @@
 
   #tip { pointer-events: none; display: none; max-width: 340px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; z-index: 6; }
   #conn { bottom: 12px; right: 12px; }
+  #graph { display: none; bottom: 12px; left: calc(var(--side) + 12px); right: 240px; z-index: 5; padding: 6px 10px 4px; }
+  body.graph #graph { display: block; }
+  body.collapsed #graph { left: 12px; }
+  #graph .ghead { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+  #graph .ghead .grow { flex: 1; }
+  #graph .ghead .muted { font-size: 11.5px; }
+  #gcanvas { display: block; width: 100%; height: 40px; }
   #mode { bottom: 12px; left: 50%; transform: translateX(-50%); display: none; border-color: var(--frozen); color: var(--frozen); }
   body.chunkmode #mode { display: block; }
   body.chunkmode #view, body.trapmode #view { cursor: crosshair; }
@@ -164,6 +180,15 @@
     <button id="collapse" class="icon" data-i18n-title="panel.hide">⟨</button>
   </header>
   <div class="scroll">
+    <section id="build">
+      <h2 data-i18n="build.title">Build</h2>
+      <div class="row"><button id="buildmode" class="grow" data-i18n="build.toggle">🧱 Build mode (B)</button></div>
+      <div class="palette" id="recent"></div>
+      <input type="search" id="bsearch" data-i18n-placeholder="build.search" autocomplete="off">
+      <div class="palette" id="palette"></div>
+      <p class="hint muted" data-i18n="build.hint"></p>
+    </section>
+
     <section>
       <h2><span data-i18n="designs.title">Designs</span> <span class="count muted" id="dcount"></span></h2>
       <input type="search" id="search" data-i18n-placeholder="designs.search" autocomplete="off">
@@ -189,6 +214,9 @@
       </div>
       <div class="row">
         <a class="btn grow" id="dllit" href="/api/world.litematic" download data-i18n="world.dlLit">⬇ .litematic</a>
+      </div>
+      <div class="row">
+        <button id="share" class="grow" data-i18n="world.share">🔗 Copy share link</button>
       </div>
       <div class="row">
         <button id="mats" class="grow" data-i18n="mats.button">📦 Material list</button>
@@ -267,6 +295,16 @@
 </div>
 <div id="mode" class="panel" data-i18n-html="chunk.modeHint"></div>
 <div id="trapmodehint" class="panel" data-i18n-html="trap.modeHint"></div>
+<div id="graph" class="panel">
+  <div class="ghead">
+    <b data-i18n="graph.title">Signal graph</b>
+    <span class="muted" data-i18n="graph.hint">hover a block and press G to add or remove it</span>
+    <span class="grow"></span>
+    <button id="gspan" class="icon" data-i18n-title="graph.spanTitle">100 gt</button>
+    <button id="gclear" class="icon" data-i18n-title="graph.clear">✕</button>
+  </div>
+  <canvas id="gcanvas"></canvas>
+</div>
 <div id="conn" class="panel muted"></div>
 <div id="toasts"></div>
 <div id="drop" data-i18n="drop"></div>

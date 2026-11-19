@@ -6,17 +6,23 @@
 import { Simulation } from '../../server/sim.js';
 import { seed } from 'node:fs';
 
+const SHIPPED = ['demo', 'example-flying-machine', 'example-t-flip-flop', 'example-bud', 'example-repeater-lock'];
+
 const pipe = async (bytes, stream) =>
   new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
 
 export async function start() {
-  // the shipped demo design (not stored: a newer version of the page brings a newer demo)
-  try {
-    const r = await fetch(new URL('../../designs/demo.json', import.meta.url));
-    if (r.ok) seed('designs/demo.json', await r.text());
-  } catch {
-    // no demo: start with an empty floor
-  }
+  // the shipped designs (not stored: a newer version of the page brings newer ones)
+  await Promise.all(
+    SHIPPED.map(async (name) => {
+      try {
+        const r = await fetch(new URL(`../../designs/${name}.json`, import.meta.url));
+        if (r.ok) seed(`designs/${name}.json`, await r.text());
+      } catch {
+        // missing: leave it out
+      }
+    }),
+  );
   const sim = new Simulation({
     designsDir: 'designs',
     gzip: (b) => pipe(b, new CompressionStream('gzip')),

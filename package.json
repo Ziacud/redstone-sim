@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server/index.js",
     "viewer": "node server/index.js --viewer-only --load demo",
-    "test": "node --test test/vanilla.test.js test/mcp.test.js test/conformance.test.js test/rewind.test.js test/containers.test.js",
+    "test": "node --test test/vanilla.test.js test/mcp.test.js test/conformance.test.js test/rewind.test.js test/containers.test.js test/viewer-protocol.test.js",
     "fetch-captures": "node scripts/fetch-tickwright.js",
     "conformance": "node conformance/run.js --verbose"
   },

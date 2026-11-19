@@ -13,6 +13,8 @@ assistant such as Claude can build and test circuits) and a live 3D web viewer.
 - **Server conditions:** frozen (unloaded or lazy) chunks, server restarts, and chunk-border
   traps that stop a flying machine the way a busy server does.
 - Headless and deterministic: run thousands of what-if cases from a script, or watch one in 3D.
+- **Build in the viewer** like in game (right click places, left click breaks), watch any block's
+  signal on a **graph**, and **share a world as a link**.
 - **Rewind:** step back tick by tick to see exactly how a machine broke.
 - **Material list:** the items, stacks and shulker boxes a build takes.
 - Hoppers, chests, droppers, dispensers, barrels and shulker boxes with their items; note blocks
@@ -57,8 +59,10 @@ composters, crafters, sculk sensors, rails, tripwire hooks, bells, lecterns, TNT
 
 ## In the browser
 
-**https://ziacud.github.io/redstone-sim/** runs the whole simulator in the page: the viewer below with the demo design, rewind,
-the material list, opening and downloading `.json`, `.mcfunction` and `.litematic` files.
+**https://ziacud.github.io/redstone-sim/** runs the whole simulator in the page: the viewer below with the demo design
+and the examples (a flying machine, a T flip-flop, a BUD, a repeater latch), building, the signal
+graph, share links, rewind, the material list, opening and downloading `.json`, `.mcfunction` and
+`.litematic` files.
 Designs you save are kept in your browser's storage. The MCP server needs the local install.
 
 The same page works from any static web server: serve the repository folder and open
@@ -81,6 +85,15 @@ node server/index.js --viewer-only --load demo
 Open http://localhost:3700/. The UI is in English or Turkish (button at the top of the side
 panel; the default follows your browser language).
 
+- **Build:** pick a block in the palette (or press `B`). Right click places it on the face under
+  the mouse, left click breaks, right click on a lever, button, repeater… uses it (Shift + right
+  click places), middle click picks a block, `1`–`9` the recent ones. Facing follows the camera
+  the way the game follows the player's view.
+- **Signal graph:** hover a block and press `G`: its power (or on/off state for pistons, lamps,
+  doors…) is sampled after every tick and drawn over the last 50–400 game ticks, up to 8 blocks.
+  Rewinding trims the graph.
+- **Share link:** copies a link with the whole world packed into it (the demo is about 3 KB);
+  opening it in the browser demo loads that world.
 - **Designs:** saved worlds in `designs/` (click to load; download; delete). **Open file** or
   drag and drop a `.json` design, a `.mcfunction` (its `setblock` and `fill` commands run as
   they do in game) or a Litematica `.litematic` (every region, container items and pending
