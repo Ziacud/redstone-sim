@@ -67,8 +67,8 @@ composters, crafters, sculk sensors, rails, tripwire hooks, bells, lecterns, TNT
 ## In the browser
 
 **https://ziacud.github.io/redstone-sim/** runs the whole simulator in the page: the viewer below with the demo design
-and the examples (a flying machine, a T flip-flop, a BUD, a repeater latch, an item
-sorter, an auto crafter, a hopper clock, a sculk wireless link), building, the signal
+and the examples (a flying machine, an item sorter, a hopper clock, an auto crafter, a
+T flip-flop), building, the signal
 graph, share links, rewind, the material list, opening and downloading `.json`, `.mcfunction` and
 `.litematic` files.
 Designs you save are kept in your browser's storage. The MCP server needs the local install.

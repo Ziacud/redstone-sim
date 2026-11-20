@@ -66,8 +66,7 @@ sensör, ray, tripwire hook, çan, kürsü, TNT, yaprak gibi bloklar.
 ## Tarayıcıda
 
 **https://ziacud.github.io/redstone-sim/** simülatörün tamamını sayfanın içinde çalıştırır: aşağıdaki görüntüleyici, demo
-tasarımı ve örnekler (flying machine, T flip-flop, BUD, repeater kilidi, eşya ayıklayıcı, otomatik
-crafter, hopper saati, sculk ile kablosuz sinyal), kurma, sinyal grafiği,
+tasarımı ve örnekler (flying machine, eşya ayıklayıcı, hopper saati, otomatik crafter, T flip-flop), kurma, sinyal grafiği,
 paylaşım bağlantısı, geri sarma, malzeme listesi, `.json`, `.mcfunction` ve `.litematic` açma ve
 indirme.
 Kaydettiğin tasarımlar tarayıcının deposunda saklanır. MCP sunucusu için yerel kurulum gerekir.

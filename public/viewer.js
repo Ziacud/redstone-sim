@@ -34,9 +34,21 @@ const sun = new THREE.DirectionalLight(0xffffff, 1.6);
 sun.position.set(0.6, 1, 0.35);
 scene.add(sun);
 
-addEventListener('resize', () => {
+/**
+ * The canvas fills the window, but the side panel and the top bar cover part of it: shift the
+ * projection so the orbit target sits in the middle of the part that is left free.
+ */
+function fitViewOffset() {
+  const wide = innerWidth > 760;
+  const side = wide && !document.body.classList.contains('collapsed') ? document.getElementById('side')?.offsetWidth ?? 0 : 0;
+  const bar = document.getElementById('bar');
+  const top = wide && bar ? bar.getBoundingClientRect().bottom : 0;
   camera.aspect = innerWidth / innerHeight;
+  camera.setViewOffset(innerWidth, innerHeight, -side / 2, -top / 2, innerWidth, innerHeight);
   camera.updateProjectionMatrix();
+}
+addEventListener('resize', () => {
+  fitViewOffset();
   renderer.setSize(innerWidth, innerHeight);
 });
 
@@ -592,6 +604,7 @@ function clearWorld() {
 
 let yRange = [0, 1];
 function frame() {
+  fitViewOffset();
   if (!blocks.size) return;
   const min = [Infinity, Infinity, Infinity];
   const max = [-Infinity, -Infinity, -Infinity];
@@ -815,7 +828,10 @@ addEventListener('keydown', (e) => {
   else if (k === 'b') setBuildMode(!buildMode);
   else if (k === 'g' && hovered) send({ type: 'probe', x: hovered.x, y: hovered.y, z: hovered.z });
   else if (/^[1-9]$/.test(e.key) && recent[Number(e.key) - 1]) selectBlock(recent[Number(e.key) - 1]);
-  else if (k === 'p') document.body.classList.toggle('collapsed');
+  else if (k === 'p') {
+    document.body.classList.toggle('collapsed');
+    fitViewOffset();
+  }
   else if (e.key === 'Escape') {
     setChunkMode(false);
     setTrapMode(false);
@@ -1290,7 +1306,10 @@ $('newworld').onclick = async () => {
   await api('/api/new', {});
   toast(t('world.newDone'));
 };
-$('collapse').onclick = () => document.body.classList.toggle('collapsed');
+$('collapse').onclick = () => {
+  document.body.classList.toggle('collapsed');
+  fitViewOffset();
+};
 
 // material list
 let mats = null;
